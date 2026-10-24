@@ -2,13 +2,17 @@ import http from 'node:http';
 import { WebSocketServer } from 'ws';
 import { openStore } from './store/db.js';
 import { createGuard } from './net/guard.js';
+import { createSecrets } from './secrets.js';
 
 const ORIGINS = new Set(['tauri://localhost', 'http://tauri.localhost', 'https://tauri.localhost', 'http://localhost:5173', 'http://127.0.0.1:5173']);
 
 // JSON-RPC over WS: {id,method,params} -> {id,result} | {id,error:{code,message,server}}; pushes {event:'db',sub,body}.
 export async function startCore({ dir, token, port = 0 }) {
   const store = openStore(dir);
-  const guard = createGuard({ mode: 'local' });
+  const saved = store.get('settings/sovereignty') || {};
+  const guard = createGuard({ mode: saved.mode || 'local', allow: saved.allow || [] });
+  guard.onChange((c) => store.set('settings/sovereignty', c));
+  const secrets = createSecrets(store);
   const server = http.createServer((req, res) => {
     if (req.url === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"ok":true}'); }
     res.writeHead(404); res.end();
@@ -41,6 +45,15 @@ export async function startCore({ dir, token, port = 0 }) {
           return send({ event: 'db', sub: params.sub, body: store.get(params.path) });
         }
         case 'db.unsubscribe': subs.get(params.sub)?.(); subs.delete(params.sub); return send({ id, result: { ok: true } });
+        case 'guard.get': return send({ id, result: { mode: guard.getMode(), allow: guard.allowlist() } });
+        case 'guard.setMode': guard.setMode(params.mode); return send({ id, result: { mode: guard.getMode() } });
+        case 'guard.allow': guard.allowHost(params.host); return send({ id, result: { allow: guard.allowlist() } });
+        case 'guard.remove': guard.removeHost(params.host); return send({ id, result: { allow: guard.allowlist() } });
+        case 'guard.log': return send({ id, result: guard.log(params?.n) });
+        case 'guard.clearLog': guard.clearLog(); return send({ id, result: { ok: true } });
+        case 'secrets.set': secrets.set(params.name, params.value); return send({ id, result: { ok: true } });
+        case 'secrets.has': return send({ id, result: { has: secrets.has(params.name) } });
+        case 'secrets.delete': secrets.delete(params.name); return send({ id, result: { ok: true } });
         case 'mcp.callTool': return fail(id, 'server_not_connected', 'No connector registered');
         case 'sample': return fail(id, 'provider_offline', 'No AI provider configured');
         default: return fail(id, 'not_found', `Unknown method ${method}`);
@@ -51,7 +64,7 @@ export async function startCore({ dir, token, port = 0 }) {
 
   await new Promise((r) => server.listen(port, '127.0.0.1', r));
   return {
-    port: server.address().port, guard, store,
+    port: server.address().port, guard, store, secrets,
     async close() { wss.clients.forEach((c) => c.terminate()); await new Promise((r) => server.close(r)); store.close(); },
   };
 }
