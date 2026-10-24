@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "dev", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "--port", "5173", "--strictPort"], "port": 5173 },
+    { "name": "lumen-download", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "C:/Users/CYCRUS~1/AppData/Local/Temp/claude/C--Users-Cycrustmine-coding-perso-dashCoder/970719b6-c939-45e5-9ea7-76d4fbe0f659/scratchpad/lumen-dl", "--port", "4180"], "port": 4180 }
+  ]
+}

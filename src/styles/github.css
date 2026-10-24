@@ -1,0 +1,120 @@
+/* ---------- GitHub (home card, project workspace, tasks, drawer) ---------- */
+
+/* checks dot + review chip + draft badge */
+.gh-checks { display: inline-grid; place-items: center; width: 14px; height: 14px; flex: none; }
+.gh-checks i { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.gh-checks--passing i { background: var(--green); }
+.gh-checks--pending i { background: var(--orange); animation: gh-pulse 1.4s ease-in-out infinite; }
+.gh-checks--failing i { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent); }
+@keyframes gh-pulse { 50% { opacity: 0.45; } }
+
+.gh-review, .gh-draft {
+  display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 999px; flex: none;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.01em; white-space: nowrap; background: var(--fill-2); color: var(--text-2);
+}
+.gh-review--ok { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.gh-review--bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 13%, transparent); }
+.gh-review--wait { color: var(--orange); background: color-mix(in srgb, var(--orange) 13%, transparent); }
+.gh-draft { margin-right: 6px; vertical-align: 1px; }
+
+/* "+ Task" and "In tasks" */
+.gh-addtask, .gh-intask {
+  position: relative; z-index: 1; flex: none; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px 0 8px;
+  border-radius: 999px; font-size: 11.5px; font-weight: 650; white-space: nowrap; transition: background 0.2s, color 0.2s;
+}
+.gh-addtask { color: var(--accent-ink); background: var(--accent-soft); cursor: pointer; }
+.gh-addtask:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.gh-intask { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+.gh-addtask .ico, .gh-intask .ico { width: 13px; height: 13px; }
+.gh-addtask:focus-visible, .gh-intask:focus-visible, .gh-chip:focus-visible, .ghrow__link:focus-visible { outline: 2.5px solid var(--accent-ink); outline-offset: 2px; }
+
+/* link chip (drawer meta, PR link) */
+.gh-chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 999px; background: var(--fill);
+  font-size: 12px; font-weight: 650; color: var(--text-2); white-space: nowrap; transition: background 0.2s, color 0.2s;
+}
+.gh-chip .ico { width: 13px; height: 13px; }
+a.gh-chip:hover { background: var(--accent-soft); color: var(--accent-ink); }
+
+/* rows: home card groups */
+.ghrows { display: grid; gap: 2px; }
+.ghrow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ghrow__link { flex: 1; min-width: 0; display: grid; gap: 2px; padding: 7px 8px; border-radius: 14px; transition: background 0.2s; }
+a.ghrow__link:hover { background: var(--fill-hover); }
+.ghrow__title { font-size: var(--fs-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ghrow__meta { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-xs); color: var(--text-3); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ghrow__meta > span + span::before { content: '·'; margin-right: 6px; }
+.ghrow__repo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 45%; }
+
+.ghcard { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 6px 22px; }
+.ghgroup { min-width: 0; display: grid; align-content: start; gap: 4px; }
+.ghgroup__h { display: flex; align-items: center; gap: 8px; padding: 0 8px; margin-bottom: 2px; font-size: var(--fs-xs); font-weight: 650; color: var(--text-2); }
+.ghgroup__h .ico { width: 14px; height: 14px; color: var(--accent-ink); }
+.ghgroup__none { padding: 6px 8px; font-size: var(--fs-sm); color: var(--text-3); }
+.ghgroup__more { padding: 2px 8px; font-size: var(--fs-xs); font-weight: 650; color: var(--accent-ink); justify-self: start; border-radius: 8px; }
+.ghgroup__more:hover { text-decoration: underline; }
+.gh-off { display: grid; gap: 10px; }
+
+/* project workspace: GitHub section */
+.ws-gh { display: grid; gap: 12px; }
+.ws-gh__top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ws-gh__repo { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-weight: 650; font-size: var(--fs-sm); color: var(--accent-ink); overflow-wrap: anywhere; }
+a.ws-gh__repo:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ws-gh__repo .ico { width: 15px; height: 15px; flex: none; }
+.ws-gh__top .ibtn { margin-left: auto; }
+.ws-gh__facts { display: flex; flex-wrap: wrap; gap: 6px; }
+.ws-gh__fact { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 999px; background: var(--fill); font-size: 12px; font-weight: 600; color: var(--text-2); }
+.ws-gh__fact .ico { width: 13px; height: 13px; }
+.ws-gh__fact--warn { color: var(--orange); background: color-mix(in srgb, var(--orange) 12%, transparent); }
+.ws-gh__fact--info { color: var(--blue); background: color-mix(in srgb, var(--blue) 11%, transparent); }
+.ws-gh__h { display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); font-weight: 650; color: var(--text-2); margin-top: 2px; }
+.ws-gh__list { display: grid; gap: 2px; }
+.ws-gh__item { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; border-radius: 12px; font-size: var(--fs-sm); }
+.ws-gh__item:hover { background: var(--fill-hover); }
+.ws-gh__item > a, .ws-gh__item > .ws-gh__text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.ws-gh__item > a:hover .ws-gh__t { text-decoration: underline; text-underline-offset: 3px; }
+.ws-gh__item > a:focus-visible { outline: 2.5px solid var(--accent-ink); outline-offset: 3px; border-radius: 6px; }
+.ws-gh__t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; }
+.ws-gh__n, .ws-gh__sha { flex: none; font-size: var(--fs-xs); color: var(--text-3); font-weight: 650; font-variant-numeric: tabular-nums; }
+.ws-gh__sha { font-family: ui-monospace, 'SF Mono', Consolas, monospace; }
+.ws-gh__when { flex: none; margin-left: auto; font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
+.ws-gh__err { font-size: var(--fs-sm); }
+.ws-gh-link { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); gap: 10px; align-items: end; }
+.ws-gh-link .field--wide { grid-column: 1 / -1; }
+.ws-gh-link__go { justify-self: start; height: 44px; }
+.ws-gh-link__err { grid-column: 1 / -1; font-size: var(--fs-xs); font-weight: 600; color: var(--danger); overflow-wrap: anywhere; }
+.ws-gh-link__err:empty { display: none; }
+.ws-gh__skel { display: grid; gap: 8px; }
+.ws-gh__skel .skel { height: 12px; }
+.ws-gh__skel .skel:nth-child(2) { width: 70%; }
+.ws-gh__skel .skel:nth-child(3) { width: 52%; }
+
+/* "New project from GitHub" pop-over */
+.gh-pop { padding: 16px; }
+.gh-new { display: grid; gap: 12px; }
+.gh-new__title { display: flex; align-items: center; gap: 8px; font: 650 16px / 1.2 var(--font-display); }
+.gh-new__title .ico { width: 17px; height: 17px; color: var(--accent-ink); }
+.gh-new__sub { font-size: var(--fs-xs); color: var(--text-2); line-height: 1.45; margin-top: -6px; }
+.gh-new__err { font-size: var(--fs-xs); font-weight: 600; color: var(--danger); overflow-wrap: anywhere; }
+.gh-new__err:empty { display: none; }
+.gh-new__foot { display: flex; justify-content: flex-end; }
+
+/* settings: GitHub connection hint */
+.bridge .cell small code { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 0.92em; padding: 1px 5px; border-radius: 6px; background: var(--fill); color: var(--text); }
+
+/* drawer: pull request */
+.dr-pr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dr-pr__hint { font-size: var(--fs-xs); color: var(--text-3); }
+
+@media (max-width: 520px) {
+  .ws-gh-link { grid-template-columns: minmax(0, 1fr); }
+  .ws-gh__when { display: none; }
+}
+@media (pointer: coarse) {
+  .gh-addtask, .gh-intask, .gh-chip { height: 36px; padding: 0 12px; }
+  .ghrow__link { padding: 9px 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gh-checks--pending i { animation: none; }
+  .gh-addtask, .gh-intask, .gh-chip, .ghrow__link { transition: none; }
+}
