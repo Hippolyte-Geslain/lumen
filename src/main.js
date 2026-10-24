@@ -1,3 +1,4 @@
+import './live/local.js';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';
