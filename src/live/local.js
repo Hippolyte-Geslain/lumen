@@ -104,6 +104,19 @@ export function installLocalClaude() {
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
       },
     },
+    guard: {
+      get: () => core.rpc('guard.get'),
+      setMode: (mode) => core.rpc('guard.setMode', { mode }),
+      allow: (host) => core.rpc('guard.allow', { host }),
+      remove: (host) => core.rpc('guard.remove', { host }),
+      log: (n) => core.rpc('guard.log', { n }),
+      clearLog: () => core.rpc('guard.clearLog'),
+    },
+    secrets: {
+      set: (name, value) => core.rpc('secrets.set', { name, value }),
+      has: (name) => core.rpc('secrets.has', { name }),
+      delete: (name) => core.rpc('secrets.delete', { name }),
+    },
     sample: (prompt, opts = {}) => core.rpc('sample', { prompt, opts: { modelTier: opts.modelTier, cache: opts.cache } }),
   };
 

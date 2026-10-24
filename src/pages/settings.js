@@ -26,6 +26,7 @@ const SECTIONS = [
   ['notifications', 'Notifications', 'bell', 'pink'],
   ['appearance', 'Appearance', 'palette', 'purple'],
   ['focus', 'Focus', 'clock', 'orange'],
+  ...(window.claude?.local ? [['sovereignty', 'Sovereignty', 'shield', 'orange']] : []),
   ['data', 'Data', 'layers', 'teal'],
 ];
 const IDS = SECTIONS.map(([id]) => id);
@@ -461,6 +462,74 @@ function focusHtml() {
     <ul class="cells">${cell({ ico: 'play', hue: 'orange', label: 'Start a session now', hint: esc(hint), hintKey: 'focus', cls: 'cell--go', ctl: `<span data-focus-btn>${btn}</span>` })}</ul>`);
 }
 
+// ---------- sovereignty (local core only) ----------
+const MODES = [
+  ['airgap', 'Air-gapped', 'Nothing leaves this machine'],
+  ['local', 'Allow-list', 'Only hosts you approve'],
+  ['cloud', 'Cloud', 'Any host'],
+];
+const SECRET_NAMES = ['anthropic', 'openai', 'github', 'gitlab', 'clickup', 'notion'];
+
+function sovereigntyHtml() {
+  if (!window.claude?.local) return '';
+  return group('sovereignty', 'Sovereignty', 'Control what this app may reach on the network, and keep API keys in the local vault.', `<ul class="cells">
+    <li class="cell"><div class="cell__text"><b>Network mode</b><small data-sov="hint"></small></div>
+      <div class="cell__ctl sov__modes" role="radiogroup" aria-label="Network mode">${MODES.map(([id, label, hint]) => `<button type="button" class="btn btn--sm btn--glass" role="radio" aria-checked="false" data-act="sov-mode" data-mode="${id}" title="${esc(hint)}">${label}</button>`).join('')}</div></li>
+    <li class="cell"><div class="cell__text"><b>Allowed hosts</b><small>Used in allow-list mode. Loopback is always allowed.</small></div>
+      <div class="cell__ctl"><input class="cell__input" data-sov-host placeholder="api.example.com" autocomplete="off" spellcheck="false"><button type="button" class="btn btn--sm btn--glass" data-act="sov-allow">Add</button></div></li>
+    <li class="cell sov__hosts"><ul data-sov="hosts" class="sov__list"></ul></li>
+    ${SECRET_NAMES.map((n) => `<li class="cell"><div class="cell__text"><b>${n} key</b><small data-sov-secret-state="${n}">Checking…</small></div>
+      <div class="cell__ctl"><input class="cell__input" type="password" data-sov-secret="${n}" placeholder="Paste key" autocomplete="off"><button type="button" class="btn btn--sm btn--glass" data-act="sov-save" data-name="${n}">Save</button><button type="button" class="btn btn--sm btn--glass" data-act="sov-del" data-name="${n}">Remove</button></div></li>`).join('')}
+    <li class="cell"><div class="cell__text"><b>Network log</b><small>Recent outbound requests and whether they were allowed.</small></div>
+      <div class="cell__ctl"><button type="button" class="btn btn--sm btn--glass" data-act="sov-clearlog">Clear</button></div></li>
+    <li class="cell sov__hosts"><ul data-sov="log" class="sov__list sov__log"></ul></li>
+  </ul>`);
+}
+
+async function refreshSovereignty() {
+  const guard = await window.claude?.use?.('guard');
+  const sec = await window.claude?.use?.('secrets');
+  if (!guard || !sec || !root) return;
+  const g = await guard.get().catch(() => null);
+  if (g) {
+    $$('[data-act="sov-mode"]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === g.mode)));
+    const m = MODES.find(([id]) => id === g.mode);
+    const h = $('[data-sov="hint"]'); if (h && m) h.textContent = m[2];
+    const ul = $('[data-sov="hosts"]');
+    if (ul) ul.innerHTML = g.allow.length
+      ? g.allow.map((x) => `<li><code>${esc(x)}</code> <button type="button" class="btn btn--sm btn--glass" data-act="sov-remove" data-host="${esc(x)}">Remove</button></li>`).join('')
+      : '<li><small>No hosts allowed.</small></li>';
+  }
+  for (const n of SECRET_NAMES) {
+    const r = await sec.has(n).catch(() => null);
+    const el = $(`[data-sov-secret-state="${n}"]`);
+    if (el) el.textContent = r?.has ? 'Stored in the local vault' : 'Not set';
+  }
+  const log = await guard.log(20).catch(() => []);
+  const lu = $('[data-sov="log"]');
+  if (lu) lu.innerHTML = log.length
+    ? log.slice().reverse().map((e) => `<li><code>${esc(e.host)}</code> <small>${e.allowed ? 'allowed' : 'blocked'} · ${esc(e.mode)} · ${relTime(e.ts)}</small></li>`).join('')
+    : '<li><small>No requests yet.</small></li>';
+}
+
+async function sovereigntyAct(act, el) {
+  const guard = await window.claude.use('guard');
+  const sec = await window.claude.use('secrets');
+  try {
+    if (act === 'sov-mode') await guard.setMode(el.dataset.mode);
+    else if (act === 'sov-allow') {
+      const i = $('[data-sov-host]'); const host = i.value.trim().toLowerCase();
+      if (host) { await guard.allow(host); i.value = ''; }
+    } else if (act === 'sov-remove') await guard.remove(el.dataset.host);
+    else if (act === 'sov-clearlog') await guard.clearLog();
+    else if (act === 'sov-save') {
+      const i = $(`[data-sov-secret="${el.dataset.name}"]`);
+      if (i.value) { await sec.set(el.dataset.name, i.value); i.value = ''; notify('Key saved to the local vault', { ico: 'shield' }); }
+    } else if (act === 'sov-del') await sec.delete(el.dataset.name);
+  } catch (e) { notify(String(e?.message || e), { ico: 'shield', tone: 'warn' }); }
+  refreshSovereignty();
+}
+
 function dataHtml() {
   return group('data', 'Data', live ? 'Your tasks, projects and focus log live in your private Lumen space' : 'Everything stays in this browser', `<ul class="cells">
     ${linkCell({ ico: 'download', hue: 'green', label: 'Export tasks as CSV', hint: `${boardTasks().length} tasks, one row each`, act: 'export' })}
@@ -476,7 +545,7 @@ function render() {
   <div class="settings">
     ${navHtml()}
     <div class="settings__col">
-      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${focusHtml()}${dataHtml()}
+      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${focusHtml()}${sovereigntyHtml()}${dataHtml()}
       <div class="settings__end" aria-hidden="true"></div>
     </div>
   </div>`;
@@ -768,6 +837,7 @@ function wire() {
     else if (act === 'perms') openPermissions(actEl);
     else if (act === 'copy-bridge') copyBridge(actEl);
     else if (act === 'github-retry') startGithub();
+    else if (act?.startsWith('sov-')) sovereigntyAct(act, actEl);
   });
 
   root.addEventListener('change', (e) => {
@@ -879,6 +949,7 @@ export const page = {
     syncValues();
     refreshFocusCell();
     refreshBridge();
+    refreshSovereignty();
     if (live) {
       refreshConnections();
       refreshCalendar();
