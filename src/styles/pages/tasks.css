@@ -304,3 +304,5 @@ html.tk-dragging, html.tk-dragging * { cursor: grabbing !important; -webkit-user
 }
 .tk-bmenu__form { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 8px 6px; border-top: 1px solid var(--line, rgba(128,128,128,.2)); }
 .tk-bmenu__input { flex: 1 1 100%; min-width: 0; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line, rgba(128,128,128,.25)); background: transparent; color: inherit; font: inherit; }
+.tk-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.tk-label { font-size: var(--fs-xs); font-weight: 600; line-height: 1; padding: 3px 7px; border-radius: 999px; color: #fff; background: var(--lb, #888); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

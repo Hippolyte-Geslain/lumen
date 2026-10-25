@@ -148,8 +148,12 @@ const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-
 
 function signature(t) {
   const subsDone = t.subtasks.filter((s) => s.done).length;
-  return [t.title, t.status, t.priority, t.assignee, t.due, t.doneAt, t.projectId, project(t.projectId)?.name ?? '', subsDone, t.subtasks.length, t.comments.length, mailUrl(t), t.pr?.url || '', startOfDay().getTime()].join('|');
+  return [t.title, t.status, t.priority, t.assignee, t.due, t.doneAt, t.projectId, project(t.projectId)?.name ?? '', subsDone, t.subtasks.length, t.comments.length, mailUrl(t), t.pr?.url || '', (t.labels || []).map((l) => l.name).join(','), startOfDay().getTime()].join('|');
 }
+
+const LABEL_HUE = { green: '#2fa36b', yellow: '#d4a017', orange: '#e0782b', red: '#d9473f', purple: '#8b5cd6', blue: '#3a7bd5', sky: '#2aa6c9', lime: '#7fb82a', pink: '#d6589a', black: '#555' };
+const labelsHtml = (t) =>
+  t.labels?.length ? `<div class="tk-labels">${t.labels.map((l) => `<span class="tk-label" style="--lb:${LABEL_HUE[l.color] || '#888'}">${esc(l.name)}</span>`).join('')}</div>` : '';
 
 function cardInner(t) {
   const done = t.status === 'done';
@@ -161,6 +165,7 @@ function cardInner(t) {
     <h3 class="tk-card__title"><button type="button" class="tk-card__open" data-open aria-describedby="tk-help">${
       done ? `<span class="tk-card__check">${CHECK}</span>` : ''
     }<span class="tk-card__text">${esc(t.title)}</span><span class="sr">, ${esc(statusLabel(t.status))}${who ? `, ${esc(who.name)}` : ''}</span></button></h3>
+    ${labelsHtml(t)}
     ${t.subtasks.length ? `<div class="tk-card__subs"><span class="tk-meter"><i style="transform:scaleX(${subsDone / t.subtasks.length})"></i></span><span>${subsDone}/${t.subtasks.length}</span></div>` : ''}
     <div class="tk-card__foot">${dueItem(t)}${mailLink(t, 'tk-mail')}${sourceChip(t, 'tk-mail')}${prChip(t, 'tk-mail')}${t.comments.length ? `<span class="tk-card__cmt" title="${t.comments.length} comment${t.comments.length === 1 ? '' : 's'}">${icon('message')}${t.comments.length}</span>` : ''}<span class="tk-card__who">${avatar(t.assignee, 'xs')}</span></div>
     <div class="tk-ses" data-ses-slot>${sessionSlot(t)}</div>`;
