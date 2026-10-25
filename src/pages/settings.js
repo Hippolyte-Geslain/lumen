@@ -29,6 +29,7 @@ const SECTIONS = [
   ['board', 'Board', 'layers', 'indigo'],
   ['focus', 'Focus', 'clock', 'orange'],
   ...(window.claude?.local ? [['ai', 'AI models', 'sparkle', 'purple']] : []),
+  ...(window.claude?.local ? [['notes', 'Notes', 'file', 'teal']] : []),
   ...(window.claude?.local ? [['sovereignty', 'Sovereignty', 'shield', 'orange']] : []),
   ['data', 'Data', 'layers', 'teal'],
 ];
@@ -519,6 +520,38 @@ const MODES = [
 ];
 const SECRET_NAMES = ['anthropic', 'openai', 'github', 'gitlab', 'clickup', 'notion'];
 
+// ---------- notes folder (local core only) ----------
+function notesHtml() {
+  if (!window.claude?.local) return '';
+  return group('notes', 'Notes', 'Point Lumen at a folder of Markdown or text (an Obsidian vault works). The assistant can then quote it. Indexed on this machine only.', `<ul class="cells">
+    <li class="cell"><div class="cell__text"><b>Folder</b><small data-notes="state">Not set</small></div>
+      <div class="cell__ctl"><input class="cell__input" data-notes-dir placeholder="C:\\Users\\you\\Notes" autocomplete="off" spellcheck="false"><button type="button" class="btn btn--sm btn--glass" data-act="notes-save">Use folder</button><button type="button" class="btn btn--sm btn--glass" data-act="notes-index">Reindex</button><button type="button" class="btn btn--sm btn--glass" data-act="notes-off">Stop</button></div></li>
+  </ul>`);
+}
+
+async function refreshNotes() {
+  const notes = await window.claude?.use?.('notes');
+  const st = $('[data-notes="state"]');
+  if (!notes || !st) return;
+  const r = await notes.get().catch(() => null);
+  st.textContent = r?.root ? r.root : 'Not set';
+  const i = $('[data-notes-dir]'); if (i && r?.root && !i.value) i.value = r.root;
+}
+
+async function notesAct(act) {
+  const notes = await window.claude.use('notes');
+  const st = $('[data-notes="state"]');
+  try {
+    if (act === 'notes-save') {
+      await notes.setRoot($('[data-notes-dir]').value.trim());
+    } else if (act === 'notes-off') { await notes.setRoot(''); $('[data-notes-dir]').value = ''; refreshNotes(); return; }
+    if (st) st.textContent = 'Indexing…';
+    const r = await notes.reindex();
+    notify(`Notes indexed: ${r.files} files (${r.added} new or changed)`, { ico: 'download' });
+  } catch (e) { notify(String(e?.message || e), { ico: 'x', tone: 'warn' }); }
+  refreshNotes();
+}
+
 // ---------- AI providers (local core only) ----------
 const AI_LABEL = { anthropic: 'Anthropic', openai: 'OpenAI', ollama: 'Ollama (local)', lmstudio: 'LM Studio (local)', 'claude-code': 'Claude Code (your CLI login)' };
 let aiCfg = null;
@@ -657,7 +690,7 @@ function render() {
   <div class="settings">
     ${navHtml()}
     <div class="settings__col">
-      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${focusHtml()}${aiHtml()}${sovereigntyHtml()}${dataHtml()}
+      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${focusHtml()}${aiHtml()}${notesHtml()}${sovereigntyHtml()}${dataHtml()}
       <div class="settings__end" aria-hidden="true"></div>
     </div>
   </div>`;
@@ -971,6 +1004,7 @@ function wire() {
     else if (act === 'github-retry') startGithub();
     else if (act?.startsWith('sov-')) sovereigntyAct(act, actEl).then(refreshAi);
     else if (act?.startsWith('ai-')) aiAct(act, actEl);
+    else if (act?.startsWith('notes-')) notesAct(act);
   });
 
   root.addEventListener('change', (e) => {
@@ -1092,6 +1126,7 @@ export const page = {
     refreshBridge();
     refreshSovereignty();
     refreshAi();
+    refreshNotes();
     if (live) {
       refreshConnections();
       refreshCalendar();

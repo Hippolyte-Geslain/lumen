@@ -4,6 +4,7 @@ import { openStore } from './store/db.js';
 import { createGuard } from './net/guard.js';
 import { createSecrets } from './secrets.js';
 import { createAI } from './ai.js';
+import { createNotes } from './notes.js';
 import { createAttachments } from './attachments.js';
 import { createConnectors } from './mcp.js';
 
@@ -17,6 +18,7 @@ export async function startCore({ dir, token, port = 0 }) {
   guard.onChange((c) => store.set('settings/sovereignty', c));
   const secrets = createSecrets(store);
   const attachments = createAttachments({ db: store.db, dir: store.dir });
+  const notes = createNotes({ db: store.db, store });
   const ai = createAI({ guard, secrets, store });
   const connectors = createConnectors({ guard, secrets });
   const server = http.createServer((req, res) => {
@@ -68,6 +70,13 @@ export async function startCore({ dir, token, port = 0 }) {
             return send({ id, result: r });
           } catch (e) { return fail(id, e.code || 'internal', e.message); }
         }
+        case 'notes.get': return send({ id, result: { root: notes.root() } });
+        case 'notes.setRoot': case 'notes.reindex': case 'notes.search': {
+          try {
+            const r = method === 'notes.setRoot' ? { root: notes.setRoot(params.dir) } : method === 'notes.reindex' ? notes.reindex() : notes.search(params.query, params.limit);
+            return send({ id, result: r });
+          } catch (e) { return fail(id, e.code || 'internal', e.message); }
+        }
         case 'ai.get': return send({ id, result: ai.get() });
         case 'ai.set': ai.set(params); return send({ id, result: ai.get() });
         case 'ai.models': return ai.models(params.id).then((result) => send({ id, result }), (e) => fail(id, e.code || 'internal', e.message));
@@ -82,7 +91,7 @@ export async function startCore({ dir, token, port = 0 }) {
 
   await new Promise((r) => server.listen(port, '127.0.0.1', r));
   return {
-    port: server.address().port, guard, store, secrets, connectors, ai, attachments,
+    port: server.address().port, guard, store, secrets, connectors, ai, attachments, notes,
     async close() { wss.clients.forEach((c) => c.terminate()); await new Promise((r) => server.close(r)); store.close(); },
   };
 }

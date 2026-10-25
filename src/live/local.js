@@ -123,6 +123,12 @@ export function installLocalClaude() {
       read: (id) => core.rpc('attachments.read', { id }),
       remove: (id) => core.rpc('attachments.remove', { id }),
     },
+    notes: {
+      get: () => core.rpc('notes.get'),
+      setRoot: (dir) => core.rpc('notes.setRoot', { dir }),
+      reindex: () => core.rpc('notes.reindex'),
+      search: (query, limit) => core.rpc('notes.search', { query, limit }),
+    },
     ai: {
       get: () => core.rpc('ai.get'),
       set: (cfg) => core.rpc('ai.set', cfg),

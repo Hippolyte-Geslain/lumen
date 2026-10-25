@@ -12,6 +12,17 @@ import { notify } from './island.js';
 const history = []; // { role, content, actions?: [{a, state}] }
 const keyOf = (s) => s.map(([k]) => k);
 
+/** Excerpts from the user's notes folder that match the question, cited by path. Empty when notes are off. */
+async function notesContext(q) {
+  try {
+    const notes = await use('notes');
+    if (!notes) return '';
+    const hits = await notes.search(q, 5);
+    if (!hits.length) return '';
+    return `Excerpts from the user's notes (cite the path when you use one):\n${hits.map((h) => `[${h.path}] ${h.snippet}`).join('\n')}`;
+  } catch { return ''; }
+}
+
 function system() {
   const tasks = boardTasks().slice(0, 60);
   return [
@@ -91,7 +102,8 @@ export function openChat() {
         history.push({ role: 'user', content: q });
         render(body, { busy: true });
         try {
-          const msgs = [{ role: 'system', content: system() }, ...history.slice(-12).map(({ role, content }) => ({ role, content }))];
+          const extra = await notesContext(q);
+          const msgs = [{ role: 'system', content: system() + (extra ? `\n\n${extra}` : '') }, ...history.slice(-12).map(({ role, content }) => ({ role, content }))];
           const raw = await reply(msgs);
           const { text, actions } = parseActions(raw, { statuses: keyOf(STATUSES), taskIds: new Set(cardTasks().map((t) => t.id)) });
           history.push({ role: 'assistant', content: text || (actions.length ? 'Here is what I would change:' : '…'), actions: actions.map((a) => ({ a, state: 'pending' })) });
