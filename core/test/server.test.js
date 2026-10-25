@@ -34,7 +34,7 @@ describe('core server', () => {
   it('returns explain-style errors', async () => {
     const ws = await open(token);
     expect((await rpc(ws, 'mcp.callTool', {})).error.code).toBe('server_not_connected');
-    expect((await rpc(ws, 'sample', {})).error.code).toBe('provider_offline');
+    expect((await rpc(ws, 'sample', { prompt: 'x' })).error.code).toBe('provider_offline');
     ws.close();
   });
 });

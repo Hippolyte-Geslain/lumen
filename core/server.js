@@ -3,6 +3,8 @@ import { WebSocketServer } from 'ws';
 import { openStore } from './store/db.js';
 import { createGuard } from './net/guard.js';
 import { createSecrets } from './secrets.js';
+import { createSampler } from './sample.js';
+import { createConnectors } from './mcp.js';
 
 const ORIGINS = new Set(['tauri://localhost', 'http://tauri.localhost', 'https://tauri.localhost', 'http://localhost:5173', 'http://127.0.0.1:5173']);
 
@@ -13,6 +15,8 @@ export async function startCore({ dir, token, port = 0 }) {
   const guard = createGuard({ mode: saved.mode || 'local', allow: saved.allow || [] });
   guard.onChange((c) => store.set('settings/sovereignty', c));
   const secrets = createSecrets(store);
+  const sample = createSampler({ guard, secrets });
+  const connectors = createConnectors({ guard, secrets });
   const server = http.createServer((req, res) => {
     if (req.url === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"ok":true}'); }
     res.writeHead(404); res.end();
@@ -54,8 +58,8 @@ export async function startCore({ dir, token, port = 0 }) {
         case 'secrets.set': secrets.set(params.name, params.value); return send({ id, result: { ok: true } });
         case 'secrets.has': return send({ id, result: { has: secrets.has(params.name) } });
         case 'secrets.delete': secrets.delete(params.name); return send({ id, result: { ok: true } });
-        case 'mcp.callTool': return fail(id, 'server_not_connected', 'No connector registered');
-        case 'sample': return fail(id, 'provider_offline', 'No AI provider configured');
+        case 'mcp.callTool': return connectors.callTool(params.server, params.tool, params.input).then((result) => send({ id, result }), (e) => fail(id, e.code || 'internal', e.message));
+        case 'sample': return sample(params.prompt, params.opts).then((result) => send({ id, result }), (e) => fail(id, e.code || 'internal', e.message));
         default: return fail(id, 'not_found', `Unknown method ${method}`);
       }
     });
@@ -64,7 +68,7 @@ export async function startCore({ dir, token, port = 0 }) {
 
   await new Promise((r) => server.listen(port, '127.0.0.1', r));
   return {
-    port: server.address().port, guard, store, secrets,
+    port: server.address().port, guard, store, secrets, connectors,
     async close() { wss.clients.forEach((c) => c.terminate()); await new Promise((r) => server.close(r)); store.close(); },
   };
 }
