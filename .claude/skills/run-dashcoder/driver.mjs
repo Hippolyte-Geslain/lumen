@@ -92,6 +92,39 @@ try {
   ok('automation fired toast', fired);
   await p.screenshot({ path: join(OUT, 'board.png') });
 
+  // Boards: Trello import (fixture), ClickUp import mapping, switching back
+  const boards = await p.evaluate(async () => {
+    const st = await import('/src/store.js');
+    const { parseTrello } = await import('/src/lib/trello.js');
+    const { clickupToBoard } = await import('/src/lib/pmimport.js');
+    const before = st.boards().length;
+    const tr = parseTrello({ name: 'Trello fixture', lists: [{ id: 'l1', name: 'Backlog', pos: 1 }, { id: 'l2', name: 'Done', pos: 2 }], cards: [{ id: 'c1', idList: 'l1', name: 'First', pos: 1, labels: [{ name: 'bug', color: 'red' }] }, { id: 'c2', idList: 'l2', name: 'Second', pos: 2 }] }, { me: st.state.me });
+    st.importBoard(tr.name, tr.lists, tr.cards);
+    await new Promise((r) => setTimeout(r, 400));
+    const onTrello = st.activeBoard().name === 'Trello fixture' && st.STATUSES.map(([k]) => k).join() === 'backlog,done';
+    const cols = [...document.querySelectorAll('.tk-col')].length;
+    const cu = clickupToBoard({ tasks: [{ name: 'A', status: { status: 'open' } }] }, { me: st.state.me });
+    st.importBoard(cu.name, cu.lists, cu.cards);
+    const after = st.boards().length;
+    st.switchBoard(st.boards()[0].id);
+    await new Promise((r) => setTimeout(r, 400));
+    return { before, after, onTrello, cols, back: st.STATUSES.length };
+  });
+  ok('Trello + ClickUp imports create boards', boards.after === boards.before + 2 && boards.onTrello && boards.cols === 2, JSON.stringify(boards));
+  ok('switching back restores the first board lists', boards.back === 4);
+
+  // Notes search through the shim, then the chat drawer
+  const hit = await p.evaluate(async () => {
+    const n = await window.claude.use('notes');
+    return (await n.search('anything')).length >= 0;
+  });
+  ok('notes.search answers with no root', hit);
+  await p.keyboard.press('Control+j');
+  await p.waitForTimeout(600);
+  ok('chat drawer opens (Ctrl+J)', await p.evaluate(() => !!document.querySelector('.chat, [data-chat], #chat')));
+  await p.screenshot({ path: join(OUT, 'chat.png') });
+  await p.keyboard.press('Escape');
+
   if (withAgent) {
     const run = await p.evaluate(async () => {
       const m = await window.claude.use('mcp');

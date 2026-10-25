@@ -19,13 +19,13 @@ node .claude/skills/run-dashcoder/driver.mjs --agent    # also runs a real Claud
 ```
 Exit code 1 if any line is FAIL. Screenshots (`settings.png`, `board.png`) land in `%TEMP%/lumen-run` (or `OUT=`). Open them: a blank frame is a failure.
 
-It checks: core connection, every Settings section, AI providers, backup, update, `host:lumen` folders, adding/rejecting automation rules in the UI, a rule firing when a card moves to Done, optionally an agent run.
+It checks: core connection, every Settings section, AI providers, backup, update, `host:lumen` folders, adding/rejecting automation rules in the UI, a rule firing on Done, Trello and ClickUp imports plus board switching, notes search, the Ctrl+J assistant drawer, and optionally an agent run.
 
 ## Run (human path)
 `node core/index.js` prints `LUMEN_CORE_READY {"port":…,"token":…}`; `npx vite`; open `http://localhost:5173/?core_port=<port>&core_token=<token>`. Without those params the page runs on demo data with no core.
 
 ## Test
-`npm test` (vitest, page + core) and `npx vite build`.
+`npm test` (vitest, page + core; `core/test/rpc.test.js` covers the RPC surface) and `npx vite build`.
 
 ## Gotchas
 - Core env: `LUMEN_DATA_DIR`, `LUMEN_CORE_PORT`, `LUMEN_CORE_TOKEN`, `LUMEN_CODING_ROOT`. Set the last to a temp dir or agent runs create folders under `~/coding/perso`.
