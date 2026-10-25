@@ -130,6 +130,8 @@ export function installLocalClaude() {
       reindex: () => core.rpc('notes.reindex'),
       search: (query, limit) => core.rpc('notes.search', { query, limit }),
     },
+    backup: { run: () => core.rpc('backup.run'), list: () => core.rpc('backup.list') },
+    update: { get: () => core.rpc('update.get'), setFeed: (feed) => core.rpc('update.setFeed', { feed }), check: () => core.rpc('update.check') },
     agents: {
       list: () => core.rpc('agents.list'),
       get: (id) => core.rpc('agents.get', { id }),

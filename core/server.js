@@ -8,6 +8,8 @@ import { createNotes } from './notes.js';
 import { createAttachments } from './attachments.js';
 import { createAgents } from './agents.js';
 import { createHostLumen } from './hostlumen.js';
+import { createBackup } from './backup.js';
+import { createUpdater } from './update.js';
 import { createGoogle } from './google.js';
 import { createConnectors } from './mcp.js';
 
@@ -24,6 +26,8 @@ export async function startCore({ dir, token, port = 0, ...opts }) {
   const notes = createNotes({ db: store.db, store });
   const ai = createAI({ guard, secrets, store });
   const agents = createAgents({ store, guard, dir: store.dir, ...(opts.agents || {}) });
+  const backup = createBackup({ store });
+  const updater = createUpdater({ guard, store, version: opts.version || '0.1.0' });
   const connectors = createConnectors({ guard, secrets });
   const google = createGoogle({ guard, secrets });
   connectors.register('google', google.connector);
@@ -107,6 +111,12 @@ export async function startCore({ dir, token, port = 0, ...opts }) {
             return send({ id, result: google.status() });
           } catch (e) { return fail(id, e.code || 'internal', e.message); }
         }
+        case 'backup.run': case 'backup.list': {
+          try { return send({ id, result: method === 'backup.run' ? backup.run() : { dir: backup.dir, items: backup.list() } }); } catch (e) { return fail(id, e.code || 'internal', e.message); }
+        }
+        case 'update.get': return send({ id, result: updater.get() });
+        case 'update.setFeed': try { updater.setFeed(params.feed); return send({ id, result: updater.get() }); } catch (e) { return fail(id, e.code || 'internal', e.message); }
+        case 'update.check': return updater.check().then((result) => send({ id, result }), (e) => fail(id, e.code || 'internal', e.message));
         case 'ai.usage': return send({ id, result: ai.usage() });
         case 'ai.get': return send({ id, result: ai.get() });
         case 'ai.set': ai.set(params); return send({ id, result: ai.get() });

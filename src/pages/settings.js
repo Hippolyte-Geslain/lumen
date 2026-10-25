@@ -797,6 +797,7 @@ async function sovereigntyAct(act, el) {
 function dataHtml() {
   return group('data', 'Data', live ? 'Your tasks, projects and focus log live in your private Lumen space' : 'Everything stays in this browser', `<ul class="cells">
     ${linkCell({ ico: 'download', hue: 'green', label: 'Export tasks as CSV', hint: `${cardTasks().length} tasks, one row each`, act: 'export' })}
+    ${window.claude?.local ? linkCell({ ico: 'download', hue: 'purple', label: 'Back up now', hint: 'Copies the database and a JSON export next to it (keeps the last 10)', act: 'backup' }) + linkCell({ ico: 'link', hue: 'blue', label: 'Check for updates', hint: 'Asks for a feed URL the first time', act: 'update-check' }) : ''}
     ${linkCell({ ico: 'download', hue: 'blue', label: 'Import a Trello board', hint: 'Pick the JSON file from Trello Print and export', act: 'import-trello' })}
     ${live
       ? linkCell({ ico: 'trash', hue: 'danger', label: 'Clear Lumen data', hint: 'Delete your tasks, projects, focus log and activity', act: 'clear', cls: 'cell--danger' })
@@ -1114,6 +1115,16 @@ function wire() {
     if (act === 'focus') {
       if (focus.isRunning()) focus.stop();
       else focus.start(state.settings.focusMinutes);
+    } else if (act === 'backup') {
+      window.claude.use('backup').then((b) => b.run()).then((r) => notify(`Backup saved: ${r.path}`, { ico: 'check', hold: 6 })).catch((e) => notify(String(e?.message || e), { ico: 'x', tone: 'warn' }));
+    } else if (act === 'update-check') {
+      window.claude.use('update').then(async (u) => {
+        let { feed } = await u.get();
+        if (!feed) { feed = (window.prompt('Update feed URL (https://… JSON with {"version","url"})') || '').trim(); if (!feed) return; await u.setFeed(feed); }
+        const r = await u.check();
+        notify(r.newer ? `Version ${r.latest} is available (you have ${r.current})` : `You are up to date (${r.current})`, { ico: r.newer ? 'download' : 'check', hold: 6 });
+        if (r.newer && r.url) openExternal(r.url);
+      }).catch((e) => notify(String(e?.message || e), { ico: 'x', tone: 'warn' }));
     } else if (act === 'export') exportCsv();
     else if (act === 'import-trello') importTrello();
     else if (act === 'reset') resetData();
