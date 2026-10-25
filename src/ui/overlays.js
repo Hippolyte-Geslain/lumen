@@ -1,7 +1,7 @@
 import { gsap, Flip, reduced, dur, fadeUp } from '../lib/motion.js';
 import { esc, icon, uid, fmtDate, fmtTimeRange, dayLabel, dueLabel, relTime, startOfDay, addDays } from '../lib/dom.js';
 import { LABEL_HUE, LABEL_COLORS } from '../lib/labels.js';
-import { state, commit, subscribe, member, project, task as getTask, logActivity, setTaskStatus, STATUSES, PRIORITIES, statusLabel, firstName, activeBoard, firstStatus, reviewStatus, isLaunchable } from '../store.js';
+import { state, commit, subscribe, member, project, task as getTask, logActivity, setTaskStatus, STATUSES, PRIORITIES, cardTasks, statusLabel, firstName, activeBoard, firstStatus, reviewStatus, isLaunchable } from '../store.js';
 import {
   STATUS_LABEL, KINDS, SPACES, runFor, guessKind, hasSession, projectFolder, launch, answer, stop as stopSession, openTerminal, bridgeError,
 } from '../live/sessions.js';
@@ -728,6 +728,9 @@ export function openTask(id, { onClose } = {}) {
       <section class="dr-sec"><h3>Labels</h3>
         <div class="tk-labels">${(t.labels || []).map((l, i) => `<span class="tk-label" style="--lb:${LABEL_HUE[l.color] || '#888'}">${esc(l.name)}<button type="button" class="tk-label__x" data-unlabel="${i}" aria-label="Remove label ${esc(l.name)}">×</button></span>`).join('') || '<span class="faint">No labels.</span>'}</div>
         <form class="dr-add" data-form="label"><input class="input" name="v" placeholder="Add a label" autocomplete="off"><select class="input" name="c" aria-label="Label colour">${LABEL_COLORS.map((c) => `<option value="${c}">${c}</option>`).join('')}</select></form></section>
+      <section class="dr-sec"><h3>Linked cards</h3>
+        <ul class="dr-subs">${(t.links || []).map((id) => getTask(id)).filter(Boolean).map((o) => `<li class="dr-link"><a href="#/tasks" data-open-card="${o.id}">${esc(o.title)}</a> <small class="faint">${esc(statusLabel(o.status))}</small> <button type="button" class="tk-label__x" data-unlink="${o.id}" aria-label="Unlink ${esc(o.title)}">×</button></li>`).join('') || '<li class="faint">No linked cards.</li>'}</ul>
+        <form class="dr-add" data-form="link"><select class="input" name="v" aria-label="Link a card"><option value="">Link a card…</option>${cardTasks().filter((o) => o.id !== t.id && !(t.links || []).includes(o.id)).slice(0, 200).map((o) => `<option value="${o.id}">${esc(o.title)}</option>`).join('')}</select></form></section>
       <section class="dr-sec dr-claude" data-claude aria-label="Claude session">${claudeSecHtml(t)}</section>
       <section class="dr-sec"><h3>Subtasks <span class="badge">${doneSubs}/${t.subtasks.length}</span></h3>
         <ul class="dr-subs">${t.subtasks.map((s) => `<li><button type="button" class="dr-sub" role="checkbox" aria-checked="${s.done}" data-sub="${s.id}"><span class="check"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>${esc(s.title)}</span></button></li>`).join('')}</ul>
@@ -770,8 +773,23 @@ export function openTask(id, { onClose } = {}) {
       unwatch();
       unsubs = [subscribe('sessions', paintClaude), subscribe('bridge', paintClaude), subscribe('tasks', paintClaude)];
       body.addEventListener('input', (e) => trackSessionDraft(e, t));
+      body.addEventListener('change', (e) => e.target.form?.dataset.form === 'link' && e.target.value && e.target.form.requestSubmit());
       body.addEventListener('click', async (e) => {
         if (handleSessionClick(e, t)) return;
+        const ul = e.target.closest('[data-unlink]');
+        if (ul) {
+          const o = getTask(ul.dataset.unlink);
+          t.links = (t.links || []).filter((x) => x !== ul.dataset.unlink);
+          if (o) o.links = (o.links || []).filter((x) => x !== t.id);
+          commit('tasks');
+          render(body);
+          return;
+        }
+        const oc = e.target.closest('[data-open-card]');
+        if (oc) {
+          e.preventDefault();
+          return openTask(oc.dataset.openCard);
+        }
         const un = e.target.closest('[data-unlabel]');
         if (un) {
           t.labels.splice(+un.dataset.unlabel, 1);
@@ -809,14 +827,20 @@ export function openTask(id, { onClose } = {}) {
         e.preventDefault();
         const v = e.target.v.value.trim();
         if (!v) return;
-        if (e.target.dataset.form === 'label') {
+        if (e.target.dataset.form === 'link') {
+          const o = getTask(v);
+          if (o && !(t.links || []).includes(v)) {
+            t.links = [...(t.links || []), v];
+            o.links = [...(o.links || []), t.id];
+          }
+        } else if (e.target.dataset.form === 'label') {
           t.labels = t.labels || [];
           if (!t.labels.some((l) => l.name.toLowerCase() === v.toLowerCase())) t.labels.push({ name: v.slice(0, 30), color: e.target.c.value });
         } else if (e.target.dataset.form === 'sub') t.subtasks.push({ id: uid('s'), title: v, done: false });
         else t.comments.push({ id: uid('c'), who: state.me, at: Date.now(), text: v });
         commit('tasks');
         render(body);
-        body.querySelector(`[data-form="${e.target.dataset.form}"] input`).focus();
+        body.querySelector(`[data-form="${e.target.dataset.form}"] input`)?.focus();
       });
     },
   });
