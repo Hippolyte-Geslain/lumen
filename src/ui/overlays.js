@@ -1,8 +1,6 @@
 import { gsap, Flip, reduced, dur, fadeUp } from '../lib/motion.js';
 import { esc, icon, uid, fmtDate, fmtTimeRange, dayLabel, dueLabel, relTime, startOfDay, addDays } from '../lib/dom.js';
-import {
-  state, commit, subscribe, member, project, task as getTask, logActivity, setTaskStatus, STATUSES, PRIORITIES, statusLabel, firstName, activeBoard,
-} from '../store.js';
+import { state, commit, subscribe, member, project, task as getTask, logActivity, setTaskStatus, STATUSES, PRIORITIES, statusLabel, firstName, activeBoard, firstStatus, reviewStatus, isLaunchable } from '../store.js';
 import {
   STATUS_LABEL, KINDS, SPACES, runFor, guessKind, hasSession, projectFolder, launch, answer, stop as stopSession, openTerminal, bridgeError,
 } from '../live/sessions.js';
@@ -300,7 +298,7 @@ export function newTask(preset = {}) {
       { name: 'assignee', label: 'Assignee', type: 'select', options: memberOpts(), value: preset.assignee || state.me },
       { name: 'priority', label: 'Priority', type: 'select', options: PRIORITIES.map((p) => [p, p[0].toUpperCase() + p.slice(1)]), value: 'medium' },
       { name: 'due', label: 'Due', type: 'date', value: isoDay(preset.due ?? addDays(new Date(), 2)) },
-      { name: 'status', label: 'Status', type: 'select', options: STATUSES, value: preset.status || 'todo' },
+      { name: 'status', label: 'Status', type: 'select', options: STATUSES, value: preset.status || firstStatus() },
       { name: 'est', label: 'Estimate (hours)', type: 'number', value: 2, min: 1, max: 40 },
     ],
     onSubmit(v) {
@@ -414,8 +412,8 @@ export function sessionCta(t) {
   const run = runFor(t);
   if (run && (SES_ACTIVE.has(run.status) || run.status === 'waiting')) return null;
   const resume = hasSession(t);
-  if (t.status === 'review') return resume ? { resume: true } : null;
-  return ['todo', 'doing'].includes(t.status) ? { resume } : null;
+  if (t.status === reviewStatus() && t.status !== firstStatus()) return resume ? { resume: true } : null;
+  return isLaunchable(t) ? { resume } : null;
 }
 
 /** True while a run of this task is working or waiting for an answer. */
@@ -779,7 +777,7 @@ export function openTask(id, { onClose } = {}) {
         }
         const act = e.target.closest('[data-act]')?.dataset.act;
         if (act === 'done') {
-          setTaskStatus(t, t.status === 'done' ? 'todo' : 'done');
+          setTaskStatus(t, t.status === 'done' ? firstStatus() : 'done');
           render(body);
         }
         if (act === 'focus') {
@@ -869,8 +867,8 @@ export function openEvent(id) {
 }
 
 export function toggleDone(t) {
-  setTaskStatus(t, t.status === 'done' ? 'todo' : 'done');
-  if (t.status === 'done') notify(`Completed “${t.title}”`, { undo: () => setTaskStatus(t, 'todo') });
+  setTaskStatus(t, t.status === 'done' ? firstStatus() : 'done');
+  if (t.status === 'done') notify(`Completed “${t.title}”`, { undo: () => setTaskStatus(t, firstStatus()) });
 }
 
 export { notify, statusLabel, fmtDate };

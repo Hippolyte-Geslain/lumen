@@ -5,7 +5,7 @@
 // Model: each project has a folder (space + folder) and a running memory;
 // each task gets its own resumable session primed with that memory.
 
-import { state, commit, project as getProject, logActivity, member, statusLabel } from '../store.js';
+import { state, commit, project as getProject, logActivity, member, statusLabel, firstStatus, activeStatus, reviewStatus, isLaunchable } from '../store.js';
 import { LIVE, use, explain } from './runtime.js';
 import { dueLabel, uid } from '../lib/dom.js';
 
@@ -103,7 +103,7 @@ function reconcile(runs) {
 
     if (r.status === 'done' || r.status === 'blocked') {
       task.comments.push({ id: uid('c'), who: 'claude', at: Date.now(), text: `${r.status === 'blocked' ? 'Blocked: ' : ''}${r.summary}${r.files?.length ? `\nFiles: ${r.files.slice(0, 8).join(', ')}` : ''}` });
-      if (r.status === 'done' && task.status !== 'done') task.status = 'review';
+      if (r.status === 'done' && task.status !== 'done') task.status = reviewStatus();
       if (p && r.memory?.length) {
         p.memory = [...new Set([...(p.memory || []), ...r.memory])].slice(-MEMORY_CAP);
         commit('projects');
@@ -169,7 +169,7 @@ export function buildPrompt(task, { kind = guessKind(task), note = '' } = {}) {
 // ---------------------------------------------------------------- actions
 export const runFor = (task) => task?.session?.runId && state.sessions.find((r) => r.run_id === task.session.runId);
 export const isActive = (task) => ACTIVE.has(runFor(task)?.status || task?.session?.status);
-export const canLaunch = (task) => task && ['todo', 'doing'].includes(task.status);
+export const canLaunch = (task) => isLaunchable(task);
 export const hasSession = (task) => !!task?.session?.sessionId;
 
 /** The folder a project works in; null when it was never chosen. */
@@ -207,7 +207,7 @@ export async function launch(task, { kind, note = '', where, resume = false } = 
     ...(resume && task.session?.sessionId ? { resume_session_id: task.session.sessionId } : {}),
   });
   task.session = { ...(task.session || {}), runId: run.run_id, status: run.status, kind: kind || guessKind(task), space: loc.space, folder: loc.folder, startedAt: Date.now(), handled: null };
-  if (task.status === 'todo') task.status = 'doing';
+  if (task.status === firstStatus()) task.status = activeStatus();
   logActivity('task', `${resume ? 'resumed' : 'launched'} a Claude session on “${task.title}”`, task.projectId);
   state.sessions = [...state.sessions.filter((r) => r.run_id !== run.run_id), run];
   commit('tasks', 'activity', 'sessions');

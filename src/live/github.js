@@ -1,7 +1,7 @@
 // GitHub, through the Lumen bridge and the user's signed-in GitHub CLI.
 // state.github = { status, text, overview, repos: { [projectId]: repoState }, at }
 
-import { state, commit, project as getProject, logActivity, activeBoard } from '../store.js';
+import { state, commit, project as getProject, logActivity, activeBoard, firstStatus } from '../store.js';
 import { LIVE, use } from './runtime.js';
 import { HOST, bridgeError, projectFolder } from './sessions.js';
 import { uid, addDays, startOfDay } from '../lib/dom.js';
@@ -95,7 +95,7 @@ export function issueToTask(issue, projectId = null) {
   const due = addDays(startOfDay(), 2);
   due.setHours(17, 0, 0, 0);
   const t = {
-    id: uid('t'), title: issue.title.slice(0, 200), projectId, status: 'todo', priority: 'medium', assignee: 'me', due: due.getTime(),
+    id: uid('t'), title: issue.title.slice(0, 200), projectId, status: firstStatus(), priority: 'medium', assignee: 'me', due: due.getTime(),
     created: Date.now(), doneAt: null, est: 2, order: Math.min(0, ...state.tasks.filter((x) => x.order < 1000).map((x) => x.order)) - 1,
     boardId: activeBoard().id, subtasks: [], comments: [], notes: `GitHub issue ${issue.repo}#${issue.number}\n${issue.url}`, source: { kind: 'github', url: issue.url, repo: issue.repo, number: issue.number },
   };

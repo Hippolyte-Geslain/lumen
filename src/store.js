@@ -426,6 +426,12 @@ export function syncStatuses() {
   return moved;
 }
 syncStatuses();
+/** Board-agnostic roles: first list = inbox, second = in progress, penultimate = review (last is always done). */
+export const firstStatus = () => STATUSES[0][0];
+export const activeStatus = () => (STATUSES.length > 2 ? STATUSES[1][0] : STATUSES[0][0]);
+export const reviewStatus = () => (STATUSES.length > 3 ? STATUSES[STATUSES.length - 2][0] : STATUSES[STATUSES.length - 1][0]);
+/** A card an agent session can start from: still open and not yet in review. */
+export const isLaunchable = (t) => !!t && t.status !== 'done' && (STATUSES.length <= 3 || t.status !== reviewStatus());
 export const statusLabel = (s) => STATUSES.find(([k]) => k === s)?.[1] ?? s;
 export const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 export const PROJECT_STATUS = { planning: 'Planning', active: 'In progress', review: 'In review', done: 'Shipped' };

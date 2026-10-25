@@ -5,7 +5,7 @@ import '../styles/pages/inbox.css';
 
 import { gsap, reduced, dur, revealCards, fadeUp, flipList, countTo, popIn, bounceIcon } from '../lib/motion.js';
 import { esc, icon, initials, relTime, fmtTime, dayLabel, startOfDay, addDays, uid } from '../lib/dom.js';
-import { state, subscribe, commit, member, logActivity, activeBoard } from '../store.js';
+import { state, subscribe, commit, member, logActivity, activeBoard, firstStatus } from '../store.js';
 import { pageHead, headIntro, card, avatar, segmented, bindSegmented, iconBtn, sourceNote, sourceReady } from '../ui/components.js';
 import { openDrawer, closeDrawer, liveAction, notify } from '../ui/overlays.js';
 import { LIVE, SERVERS, invalidate, explain } from '../live/runtime.js';
@@ -388,7 +388,7 @@ function makeTask(t) {
   const sender = nameOf(t.from, t.fromEmail);
   const title = (t.subject || 'Follow up on email').slice(0, 200);
   const task = {
-    id: uid('t'), title, projectId: proj?.id ?? null, status: 'todo', priority: 'medium', assignee: state.me,
+    id: uid('t'), title, projectId: proj?.id ?? null, status: firstStatus(), priority: 'medium', assignee: state.me,
     due: due.getTime(), created: Date.now(), doneAt: null, est: 1,
     order: Math.min(0, ...state.tasks.filter((x) => x.order < 1000).map((x) => x.order)) - 1 - Math.random() * 0.01,
     boardId: activeBoard().id, subtasks: [], comments: [],
