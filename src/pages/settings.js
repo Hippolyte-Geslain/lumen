@@ -5,7 +5,7 @@
 // choices and profile overrides; demo mode explains how to go live.
 
 import '../styles/pages/settings.css';
-import { state, commit, subscribe, me, member, project, boardTasks, statusLabel, resetDemo } from '../store.js';
+import { state, commit, subscribe, me, member, project, boardTasks, statusLabel, resetDemo, STATUSES } from '../store.js';
 import { esc, icon, download, toCsv, relTime } from '../lib/dom.js';
 import { gsap, dur, reduced, revealCards, fadeUp, dealIn, moveLens } from '../lib/motion.js';
 import { pageHead, headIntro, avatar, segmented, bindSegmented, sourceNote, sourceReady } from '../ui/components.js';
@@ -25,6 +25,7 @@ const SECTIONS = [
   ['profile', 'Profile', 'user', 'blue'],
   ['notifications', 'Notifications', 'bell', 'pink'],
   ['appearance', 'Appearance', 'palette', 'purple'],
+  ['board', 'Board', 'layers', 'indigo'],
   ['focus', 'Focus', 'clock', 'orange'],
   ...(window.claude?.local ? [['sovereignty', 'Sovereignty', 'shield', 'orange']] : []),
   ['data', 'Data', 'layers', 'teal'],
@@ -462,6 +463,53 @@ function focusHtml() {
     <ul class="cells">${cell({ ico: 'play', hue: 'orange', label: 'Start a session now', hint: esc(hint), hintKey: 'focus', cls: 'cell--go', ctl: `<span data-focus-btn>${btn}</span>` })}</ul>`);
 }
 
+// ---------- board columns ----------
+const slug = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'list';
+
+function boardRowsHtml() {
+  const lists = STATUSES.filter(([k]) => k !== 'done');
+  const n = (k) => state.tasks.filter((t) => t.status === k).length;
+  const row = ([k, name], i) => `<li class="cell"><div class="cell__main"><div class="cell__text"><input class="cell__input" data-list="${esc(k)}" value="${esc(name)}" maxlength="24" aria-label="List name"><small>${n(k)} tasks</small></div>
+    <div class="cell__ctl">
+      <button type="button" class="btn btn--glass btn--sm" data-act="list-up" data-key="${esc(k)}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+      <button type="button" class="btn btn--glass btn--sm" data-act="list-del" data-key="${esc(k)}" aria-label="Remove list" ${lists.length < 2 ? 'disabled' : ''}>${icon('trash')}</button>
+    </div></div></li>`;
+  const done = STATUSES[STATUSES.length - 1];
+  return `${lists.map(row).join('')}<li class="cell"><div class="cell__main"><div class="cell__text"><b>${esc(done[1])}</b><small>Completion list, always last</small></div></div></li>
+    <li class="cell"><div class="cell__main"><div class="cell__text"><input class="cell__input" data-list-new placeholder="New list name" maxlength="24" aria-label="New list name"></div>
+    <div class="cell__ctl"><button type="button" class="btn btn--accent btn--sm" data-act="list-add">${icon('plus')}Add</button></div></div></li>`;
+}
+
+function boardHtml() {
+  return group('board', 'Board', 'The columns of your task board', `<ul class="cells" data-board-lists>${boardRowsHtml()}</ul>`);
+}
+
+function saveLists(lists) {
+  state.settings.boardLists = [...lists, STATUSES[STATUSES.length - 1]];
+  commit('settings');
+  const ul = $('[data-board-lists]');
+  if (ul) ul.innerHTML = boardRowsHtml();
+}
+
+function boardAct(act, el) {
+  const lists = STATUSES.filter(([k]) => k !== 'done').map((l) => [...l]);
+  const i = lists.findIndex(([k]) => k === el.dataset.key);
+  if (act === 'list-add') {
+    const input = $('[data-list-new]');
+    const name = input.value.trim();
+    if (!name) return input.focus();
+    let key = slug(name);
+    while (STATUSES.some(([k]) => k === key)) key += '-2';
+    saveLists([...lists, [key, name]]);
+  } else if (act === 'list-up' && i > 0) {
+    [lists[i - 1], lists[i]] = [lists[i], lists[i - 1]];
+    saveLists(lists);
+  } else if (act === 'list-del' && lists.length > 1) {
+    lists.splice(i, 1);
+    saveLists(lists); // orphaned tasks are rehomed to the first list by commit()
+  }
+}
+
 // ---------- sovereignty (local core only) ----------
 const MODES = [
   ['airgap', 'Air-gapped', 'Nothing leaves this machine'],
@@ -545,7 +593,7 @@ function render() {
   <div class="settings">
     ${navHtml()}
     <div class="settings__col">
-      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${focusHtml()}${sovereigntyHtml()}${dataHtml()}
+      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${focusHtml()}${sovereigntyHtml()}${dataHtml()}
       <div class="settings__end" aria-hidden="true"></div>
     </div>
   </div>`;
@@ -834,6 +882,7 @@ function wire() {
     } else if (act === 'export') exportCsv();
     else if (act === 'reset') resetData();
     else if (act === 'clear') clearData();
+    else if (act?.startsWith('list-')) boardAct(act, actEl);
     else if (act === 'perms') openPermissions(actEl);
     else if (act === 'copy-bridge') copyBridge(actEl);
     else if (act === 'github-retry') startGithub();
@@ -849,6 +898,11 @@ function wire() {
     } else if (t.matches('[data-look="solid"]')) {
       setLook({ solid: t.checked });
       squish(t);
+    } else if (t.matches('[data-list]')) {
+      const name = t.value.trim();
+      if (!name) return void (t.value = statusLabel(t.dataset.list));
+      state.settings.boardLists = STATUSES.map(([k, l]) => (k === t.dataset.list ? [k, name] : [k, l]));
+      commit('settings');
     } else if (t.matches('[data-setting]')) {
       state.settings[t.dataset.setting] = t.checked;
       commit('settings');
@@ -878,7 +932,10 @@ function wire() {
     if (e.target.matches('[data-profile]') && saveTimer) saveProfile();
   });
   root.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && e.target.matches('[data-profile]')) {
+    if (e.key === 'Enter' && e.target.matches('[data-list-new]')) {
+      e.preventDefault();
+      boardAct('list-add', e.target);
+    } else if (e.key === 'Enter' && e.target.matches('[data-profile]')) {
       e.preventDefault();
       if (saveTimer) saveProfile();
     }

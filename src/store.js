@@ -239,6 +239,7 @@ export const DEFAULT_SETTINGS = {
   calendars: null, // null = primary + every non-resource calendar
   blockFocusTime: false, // mirror focus sessions as Focus time in Google Calendar
   hideDeclined: true,
+  boardLists: [['todo', 'To do'], ['doing', 'In progress'], ['review', 'In review'], ['done', 'Done']], // board columns; 'done' is reserved (completion)
 };
 
 function blank() {
@@ -285,6 +286,11 @@ export function commit(...topics) {
     try {
       localStorage.setItem(KEY, JSON.stringify(state));
     } catch {}
+  }
+  if (topics.includes('settings') || topics.includes('tasks')) {
+    const before = JSON.stringify(STATUSES);
+    const moved = syncStatuses();
+    if ((moved || before !== JSON.stringify(STATUSES)) && !topics.includes('tasks')) topics = [...topics, 'tasks']; // columns changed: repaint the board
   }
   persisters.forEach((f) => f(topics));
   const fns = new Set();
@@ -333,6 +339,21 @@ export const unreadCount = () => state.notices.filter((n) => !n.read).length;
 export const openHours = (who) => openTasks(who).reduce((s, t) => s + t.est, 0);
 
 export const STATUSES = [['todo', 'To do'], ['doing', 'In progress'], ['review', 'In review'], ['done', 'Done']];
+/** Rebuild STATUSES in place from settings.boardLists ('done' always exists and stays last), and rehome orphaned tasks. */
+export function syncStatuses() {
+  const raw = Array.isArray(state.settings?.boardLists) ? state.settings.boardLists : [];
+  const seen = new Set();
+  const lists = raw.filter((l) => Array.isArray(l) && l[0] && l[0] !== 'done' && !seen.has(l[0]) && seen.add(l[0])).map(([k, n]) => [String(k), String(n || k)]);
+  const done = raw.find((l) => l?.[0] === 'done');
+  if (!lists.length) lists.push(['todo', 'To do']);
+  lists.push(['done', done?.[1] || 'Done']);
+  STATUSES.splice(0, STATUSES.length, ...lists);
+  const keys = new Set(lists.map(([k]) => k));
+  let moved = false;
+  for (const t of state.tasks) if (!keys.has(t.status)) { t.status = lists[0][0]; t.doneAt = null; moved = true; }
+  return moved;
+}
+syncStatuses();
 export const statusLabel = (s) => STATUSES.find(([k]) => k === s)?.[1] ?? s;
 export const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 export const PROJECT_STATUS = { planning: 'Planning', active: 'In progress', review: 'In review', done: 'Shipped' };
