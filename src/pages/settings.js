@@ -28,6 +28,7 @@ const SECTIONS = [
   ['appearance', 'Appearance', 'palette', 'purple'],
   ['board', 'Board', 'layers', 'indigo'],
   ['focus', 'Focus', 'clock', 'orange'],
+  ...(window.claude?.local ? [['ai', 'AI models', 'sparkle', 'purple']] : []),
   ...(window.claude?.local ? [['sovereignty', 'Sovereignty', 'shield', 'orange']] : []),
   ['data', 'Data', 'layers', 'teal'],
 ];
@@ -518,6 +519,68 @@ const MODES = [
 ];
 const SECRET_NAMES = ['anthropic', 'openai', 'github', 'gitlab', 'clickup', 'notion'];
 
+// ---------- AI providers (local core only) ----------
+const AI_LABEL = { anthropic: 'Anthropic', openai: 'OpenAI', ollama: 'Ollama (local)', lmstudio: 'LM Studio (local)', 'claude-code': 'Claude Code (your CLI login)' };
+let aiCfg = null;
+
+function aiHtml() {
+  if (!window.claude?.local) return '';
+  return group('ai', 'AI models', 'Pick which model answers. Local models never leave this machine; keys live in the vault (see Sovereignty).', `<ul class="cells" data-ai="list"><li class="cell"><small>Loading…</small></li></ul>`);
+}
+
+function aiRows() {
+  const ul = $('[data-ai="list"]');
+  if (!ul || !aiCfg) return;
+  const route = aiCfg.routes.chat;
+  ul.innerHTML = aiCfg.providers.map((p) => {
+    const keyed = p.kind === 'anthropic' || (p.kind === 'openai' && !p.local);
+    const state = p.enabled === false ? 'Disabled' : keyed ? (p.hasKey ? 'Key in vault' : 'No key yet') : 'No key needed';
+    return `<li class="cell"><div class="cell__text"><b>${esc(AI_LABEL[p.id] || p.id)}</b><small data-ai-state="${esc(p.id)}">${state}${route === p.id ? ' · default' : ''}</small></div>
+      <div class="cell__ctl">${p.kind === 'claude-code' ? '' : `<input class="cell__input" data-ai-model="${esc(p.id)}" list="ai-models-${esc(p.id)}" placeholder="Model (auto)" value="${esc(p.model || '')}" autocomplete="off" spellcheck="false"><datalist id="ai-models-${esc(p.id)}"></datalist>`}
+      <button type="button" class="btn btn--sm btn--glass" data-act="ai-test" data-id="${esc(p.id)}">Test</button>
+      <button type="button" class="btn btn--sm btn--glass" data-act="ai-default" data-id="${esc(p.id)}" ${route === p.id ? 'disabled' : ''}>Use first</button>
+      <button type="button" class="btn btn--sm btn--glass" data-act="ai-toggle" data-id="${esc(p.id)}">${p.enabled === false ? 'Enable' : 'Disable'}</button></div></li>`;
+  }).join('');
+}
+
+async function refreshAi() {
+  const ai = await window.claude?.use?.('ai');
+  if (!ai || !root) return;
+  aiCfg = await ai.get().catch(() => null);
+  aiRows();
+}
+
+async function aiAct(act, el) {
+  const ai = await window.claude.use('ai');
+  const id = el.dataset.id;
+  try {
+    if (act === 'ai-test') {
+      const st = $(`[data-ai-state="${id}"]`);
+      if (st) st.textContent = 'Testing…';
+      const r = await ai.test(id);
+      if (st) st.textContent = r.models.length ? `Connected · ${r.models.length} models` : 'Connected';
+      const dl = $(`#ai-models-${id}`);
+      if (dl) dl.innerHTML = r.models.map((m) => `<option value="${esc(m)}">`).join('');
+      return;
+    }
+    if (act === 'ai-default') aiCfg = await ai.set({ routes: { ...aiCfg.routes, chat: id, fast: id } });
+    else if (act === 'ai-toggle') {
+      const p = aiCfg.providers.find((x) => x.id === id);
+      aiCfg = await ai.set({ providers: aiCfg.providers.map((x) => (x.id === id ? { ...x, enabled: p.enabled === false } : x)) });
+    }
+    aiRows();
+  } catch (e) {
+    const st = $(`[data-ai-state="${id}"]`);
+    if (st) st.textContent = String(e?.message || e);
+  }
+}
+
+async function aiModel(el) {
+  const ai = await window.claude.use('ai');
+  const id = el.dataset.aiModel;
+  aiCfg = await ai.set({ providers: aiCfg.providers.map((x) => (x.id === id ? { ...x, model: el.value.trim() || undefined } : x)) }).catch(() => aiCfg);
+}
+
 function sovereigntyHtml() {
   if (!window.claude?.local) return '';
   return group('sovereignty', 'Sovereignty', 'Control what this app may reach on the network, and keep API keys in the local vault.', `<ul class="cells">
@@ -594,7 +657,7 @@ function render() {
   <div class="settings">
     ${navHtml()}
     <div class="settings__col">
-      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${focusHtml()}${sovereigntyHtml()}${dataHtml()}
+      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${focusHtml()}${aiHtml()}${sovereigntyHtml()}${dataHtml()}
       <div class="settings__end" aria-hidden="true"></div>
     </div>
   </div>`;
@@ -906,10 +969,12 @@ function wire() {
     else if (act === 'perms') openPermissions(actEl);
     else if (act === 'copy-bridge') copyBridge(actEl);
     else if (act === 'github-retry') startGithub();
-    else if (act?.startsWith('sov-')) sovereigntyAct(act, actEl);
+    else if (act?.startsWith('sov-')) sovereigntyAct(act, actEl).then(refreshAi);
+    else if (act?.startsWith('ai-')) aiAct(act, actEl);
   });
 
   root.addEventListener('change', (e) => {
+    if (e.target.dataset?.aiModel) aiModel(e.target);
     const t = e.target;
     if (t.matches('[data-notify]')) {
       state.settings.notify[t.dataset.notify] = t.checked;
@@ -1026,6 +1091,7 @@ export const page = {
     refreshFocusCell();
     refreshBridge();
     refreshSovereignty();
+    refreshAi();
     if (live) {
       refreshConnections();
       refreshCalendar();

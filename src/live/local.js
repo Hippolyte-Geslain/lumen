@@ -117,6 +117,13 @@ export function installLocalClaude() {
       has: (name) => core.rpc('secrets.has', { name }),
       delete: (name) => core.rpc('secrets.delete', { name }),
     },
+    ai: {
+      get: () => core.rpc('ai.get'),
+      set: (cfg) => core.rpc('ai.set', cfg),
+      models: (id) => core.rpc('ai.models', { id }),
+      test: (id) => core.rpc('ai.test', { id }),
+      chat: (messages, opts = {}) => core.rpc('ai.chat', { messages, opts }),
+    },
     sample: (prompt, opts = {}) => core.rpc('sample', { prompt, opts: { modelTier: opts.modelTier, cache: opts.cache } }),
   };
 
