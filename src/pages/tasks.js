@@ -4,6 +4,7 @@
 // board until the first task exists, and "Mine only" hides while every task
 // is the viewer's own.
 import '../styles/pages/tasks.css';
+import { LABEL_HUE } from '../lib/labels.js';
 
 import { gsap, reduced, dur, revealCards, collapseOut, fadeUp, countTo } from '../lib/motion.js';
 import { esc, icon, startOfDay, addDays, dueLabel, fmtDate } from '../lib/dom.js';
@@ -151,7 +152,6 @@ function signature(t) {
   return [t.title, t.status, t.priority, t.assignee, t.due, t.doneAt, t.projectId, project(t.projectId)?.name ?? '', subsDone, t.subtasks.length, t.comments.length, mailUrl(t), t.pr?.url || '', (t.labels || []).map((l) => l.name).join(','), startOfDay().getTime()].join('|');
 }
 
-const LABEL_HUE = { green: '#2fa36b', yellow: '#d4a017', orange: '#e0782b', red: '#d9473f', purple: '#8b5cd6', blue: '#3a7bd5', sky: '#2aa6c9', lime: '#7fb82a', pink: '#d6589a', black: '#555' };
 const labelsHtml = (t) =>
   t.labels?.length ? `<div class="tk-labels">${t.labels.map((l) => `<span class="tk-label" style="--lb:${LABEL_HUE[l.color] || '#888'}">${esc(l.name)}</span>`).join('')}</div>` : '';
 
