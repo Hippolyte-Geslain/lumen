@@ -9,13 +9,20 @@
     "preview": "vite preview",
     "build:artifact": "vite build && node scripts/artifact.mjs",
     "test": "vitest run",
-    "core": "node core/index.js"
+    "core": "node core/index.js",
+    "sidecar": "node scripts/build-sidecar.mjs",
+    "sidecar:smoke": "node scripts/smoke-sidecar.mjs",
+    "tauri": "tauri",
+    "tauri:dev": "npm run sidecar && tauri dev",
+    "tauri:build": "npm run sidecar && tauri build"
   },
   "dependencies": {
     "gsap": "^3.12.5",
     "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
+    "postject": "^1.0.0-alpha.6",
     "vite": "^5.4.10",
     "vitest": "^2.1.9"
   }
