@@ -400,6 +400,15 @@ export function deleteBoard(id) {
   commit('settings', 'tasks');
   return true;
 }
+/** Create a board with the given lists and cards (imports) and switch to it. */
+export function importBoard(name, lists, cards) {
+  const id = addBoard(name);
+  const board = boards().find((b) => b.id === id);
+  board.lists = normalizeLists(lists);
+  for (const c of cards) state.tasks.push({ ...c, boardId: id });
+  commit('settings', 'tasks');
+  return id;
+}
 /** Replace the lists of the active board. */
 export function setBoardLists(lists) {
   activeBoard().lists = normalizeLists(lists);

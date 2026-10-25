@@ -5,13 +5,14 @@
 // choices and profile overrides; demo mode explains how to go live.
 
 import '../styles/pages/settings.css';
-import { state, commit, subscribe, me, member, project, cardTasks, statusLabel, resetDemo, STATUSES, setBoardLists } from '../store.js';
-import { esc, icon, download, toCsv, relTime } from '../lib/dom.js';
+import { state, commit, subscribe, me, member, project, cardTasks, statusLabel, resetDemo, STATUSES, setBoardLists, importBoard } from '../store.js';
+import { esc, icon, download, toCsv, relTime, uid } from '../lib/dom.js';
 import { gsap, dur, reduced, revealCards, fadeUp, dealIn, moveLens } from '../lib/motion.js';
 import { pageHead, headIntro, avatar, segmented, bindSegmented, sourceNote, sourceReady } from '../ui/components.js';
 import { confirm, notify } from '../ui/overlays.js';
 import { getLook, setLook, onLook, WALLS, ACCENTS, wallpaperSvg } from '../look.js';
 import { managePermissions } from '../live/runtime.js';
+import { parseTrello } from '../lib/trello.js';
 import { startGithub } from '../live/github.js';
 import { GH_DEMO } from '../ui/github.js';
 import * as focus from '../focus.js';
@@ -580,6 +581,7 @@ async function sovereigntyAct(act, el) {
 function dataHtml() {
   return group('data', 'Data', live ? 'Your tasks, projects and focus log live in your private Lumen space' : 'Everything stays in this browser', `<ul class="cells">
     ${linkCell({ ico: 'download', hue: 'green', label: 'Export tasks as CSV', hint: `${cardTasks().length} tasks, one row each`, act: 'export' })}
+    ${linkCell({ ico: 'download', hue: 'blue', label: 'Import a Trello board', hint: 'Pick the JSON file from Trello Print and export', act: 'import-trello' })}
     ${live
       ? linkCell({ ico: 'trash', hue: 'danger', label: 'Clear Lumen data', hint: 'Delete your tasks, projects, focus log and activity', act: 'clear', cls: 'cell--danger' })
       : linkCell({ ico: 'reset', hue: 'danger', label: 'Reset demo data', hint: 'Back to the sample workspace', act: 'reset', cls: 'cell--danger' })}
@@ -783,6 +785,24 @@ function step(st, dir) {
   refreshFocusCell(true);
 }
 
+function importTrello() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    try {
+      const { name, lists, cards } = parseTrello(await file.text(), { me: state.me, uid });
+      importBoard(name, lists, cards);
+      notify(`Imported “${name}”: ${cards.length} cards`, { ico: 'download' });
+    } catch (e) {
+      notify(e?.message || 'That file could not be imported', { ico: 'x', tone: 'warn' });
+    }
+  };
+  input.click();
+}
+
 function exportCsv() {
   const iso = (t) => {
     if (!t) return '';
@@ -879,6 +899,7 @@ function wire() {
       if (focus.isRunning()) focus.stop();
       else focus.start(state.settings.focusMinutes);
     } else if (act === 'export') exportCsv();
+    else if (act === 'import-trello') importTrello();
     else if (act === 'reset') resetData();
     else if (act === 'clear') clearData();
     else if (act?.startsWith('list-')) boardAct(act, actEl);
