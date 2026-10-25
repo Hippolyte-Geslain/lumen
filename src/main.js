@@ -23,6 +23,7 @@ import { markNoticeRead, createEvent } from './live/sources.js';
 import { startSessions, setNotifier } from './live/sessions.js';
 import { initDock } from './ui/dock.js';
 import { startGithub } from './live/github.js';
+import { startAutomations } from './live/automations.js';
 
 const html = document.documentElement;
 
@@ -358,6 +359,7 @@ async function boot() {
   startLive();
   setNotifier(notify);
   initDock();
+  startAutomations();
   startSessions();
   // GitHub rides on the bridge: load it each time the bridge comes (back) up.
   // startGithub() stops its own refresh timer while the bridge is down.

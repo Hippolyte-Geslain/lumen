@@ -6,6 +6,7 @@
 
 import '../styles/pages/settings.css';
 import { state, commit, subscribe, me, member, project, cardTasks, statusLabel, resetDemo, STATUSES, setBoardLists, importBoard } from '../store.js';
+import { cleanRules, describeRule, TRIGGERS, RULE_ACTIONS } from '../lib/automations.js';
 import { esc, icon, download, toCsv, relTime, uid, openExternal } from '../lib/dom.js';
 import { gsap, dur, reduced, revealCards, fadeUp, dealIn, moveLens } from '../lib/motion.js';
 import { pageHead, headIntro, avatar, segmented, bindSegmented, sourceNote, sourceReady } from '../ui/components.js';
@@ -27,6 +28,7 @@ const SECTIONS = [
   ['notifications', 'Notifications', 'bell', 'pink'],
   ['appearance', 'Appearance', 'palette', 'purple'],
   ['board', 'Board', 'layers', 'indigo'],
+  ['automations', 'Automations', 'bolt', 'orange'],
   ['focus', 'Focus', 'clock', 'orange'],
   ...(window.claude?.local ? [['ai', 'AI models', 'sparkle', 'purple']] : []),
   ...(window.claude?.local ? [['notes', 'Notes', 'file', 'teal'], ['google', 'Google', 'link', 'blue']] : []),
@@ -466,6 +468,51 @@ function focusHtml() {
     <ul class="cells">${cell({ ico: 'play', hue: 'orange', label: 'Start a session now', hint: esc(hint), hintKey: 'focus', cls: 'cell--go', ctl: `<span data-focus-btn>${btn}</span>` })}</ul>`);
 }
 
+// ---------- automations ----------
+const opts = (list, sel) => list.map(([k, n]) => `<option value="${esc(k)}"${k === sel ? ' selected' : ''}>${esc(n)}</option>`).join('');
+
+function autoRowsHtml() {
+  const rules = cleanRules(state.settings.automations, STATUSES.map(([k]) => k));
+  const sl = (k) => STATUSES.find(([x]) => x === k)?.[1] ?? k;
+  const row = (r) => `<li class="cell"><div class="cell__main"><div class="cell__text"><b>${esc(describeRule(r, sl))}</b></div>
+    <div class="cell__ctl"><button type="button" class="btn btn--glass btn--sm" data-act="auto-toggle" data-id="${esc(r.id)}">${r.on ? 'On' : 'Off'}</button>
+    <button type="button" class="btn btn--glass btn--sm" data-act="auto-del" data-id="${esc(r.id)}" aria-label="Delete rule">${icon('trash')}</button></div></div></li>`;
+  const prio = ['low', 'medium', 'high', 'urgent'].map((p) => [p, p]);
+  return `${rules.map(row).join('') || '<li class="cell"><div class="cell__main"><div class="cell__text"><small>No rules yet.</small></div></div></li>'}
+    <li class="cell"><div class="cell__main"><div class="cell__text" data-auto-form>
+      <select class="cell__input" data-auto="trigger">${opts(Object.entries(TRIGGERS))}</select>
+      <select class="cell__input" data-auto="to" aria-label="List">${opts([['', 'any list'], ...STATUSES])}</select>
+      <input class="cell__input" data-auto="at" type="time" value="08:00" aria-label="Time">
+      <select class="cell__input" data-auto="action">${opts(Object.entries(RULE_ACTIONS))}</select>
+      <select class="cell__input" data-auto="status" aria-label="Target list">${opts(STATUSES)}</select>
+      <select class="cell__input" data-auto="priority" aria-label="Priority">${opts(prio, 'high')}</select>
+      <input class="cell__input" data-auto="text" placeholder="Text ({{title}} = card title)" maxlength="120"></div>
+    <div class="cell__ctl"><button type="button" class="btn btn--accent btn--sm" data-act="auto-add">${icon('plus')}Add rule</button></div></div></li>`;
+}
+
+function automationsHtml() {
+  return group('automations', 'Automations', 'When something happens on your board, do something. Runs while Lumen is open.', `<ul class="cells" data-auto-list>${autoRowsHtml()}</ul>`);
+}
+
+function autoAct(act, el) {
+  const rules = state.settings.automations = cleanRules(state.settings.automations, STATUSES.map(([k]) => k));
+  if (act === 'auto-toggle') { const r = rules.find((x) => x.id === el.dataset.id); if (r) r.on = !r.on; }
+  else if (act === 'auto-del') state.settings.automations = rules.filter((x) => x.id !== el.dataset.id);
+  else {
+    const v = (k) => $(`[data-auto="${k}"]`).value;
+    const trigger = { type: v('trigger'), ...(v('trigger') === 'card_moved' && v('to') ? { to: v('to') } : {}), ...(v('trigger') === 'daily' ? { at: v('at') } : {}) };
+    const type = v('action');
+    const text = v('text').trim();
+    const action = { type, ...(type === 'move_task' ? { status: v('status') } : {}), ...(type === 'set_priority' ? { priority: v('priority') } : {}), ...(type === 'create_task' ? { title: text, status: v('status') } : {}), ...(type === 'notify' ? { text } : {}) };
+    const next = cleanRules([{ id: uid('r'), on: true, trigger, action }], STATUSES.map(([k]) => k));
+    if (!next.length) return notify('That combination does not make sense (card actions need a card trigger, text actions need text).', { ico: 'x', tone: 'warn' });
+    state.settings.automations = [...rules, ...next];
+  }
+  commit('settings');
+  const ul = $('[data-auto-list]');
+  if (ul) ul.innerHTML = autoRowsHtml();
+}
+
 // ---------- board columns ----------
 const slug = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'list';
 
@@ -724,7 +771,7 @@ function render() {
   <div class="settings">
     ${navHtml()}
     <div class="settings__col">
-      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${focusHtml()}${aiHtml()}${notesHtml()}${googleHtml()}${sovereigntyHtml()}${dataHtml()}
+      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${automationsHtml()}${focusHtml()}${aiHtml()}${notesHtml()}${googleHtml()}${sovereigntyHtml()}${dataHtml()}
       <div class="settings__end" aria-hidden="true"></div>
     </div>
   </div>`;
@@ -1033,6 +1080,7 @@ function wire() {
     else if (act === 'reset') resetData();
     else if (act === 'clear') clearData();
     else if (act?.startsWith('list-')) boardAct(act, actEl);
+    else if (act?.startsWith('auto-')) autoAct(act, actEl);
     else if (act === 'perms') openPermissions(actEl);
     else if (act === 'copy-bridge') copyBridge(actEl);
     else if (act === 'github-retry') startGithub();

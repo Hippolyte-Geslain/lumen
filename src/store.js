@@ -241,6 +241,8 @@ export const DEFAULT_SETTINGS = {
   hideDeclined: true,
   boards: null, // [{ id, name, lists: [[key, name], ...] }]; created on first use, 'done' is reserved (completion) and stays last
   boardId: 'main', // the board shown on Tasks
+  automations: [], // rules, see src/lib/automations.js
+  autoRuns: {}, // rule id → last daily run
 };
 
 function blank() {
