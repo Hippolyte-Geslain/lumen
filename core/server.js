@@ -6,13 +6,14 @@ import { createSecrets } from './secrets.js';
 import { createAI } from './ai.js';
 import { createNotes } from './notes.js';
 import { createAttachments } from './attachments.js';
+import { createAgents } from './agents.js';
 import { createGoogle } from './google.js';
 import { createConnectors } from './mcp.js';
 
 const ORIGINS = new Set(['tauri://localhost', 'http://tauri.localhost', 'https://tauri.localhost', 'http://localhost:5173', 'http://127.0.0.1:5173']);
 
 // JSON-RPC over WS: {id,method,params} -> {id,result} | {id,error:{code,message,server}}; pushes {event:'db',sub,body}.
-export async function startCore({ dir, token, port = 0 }) {
+export async function startCore({ dir, token, port = 0, ...opts }) {
   const store = openStore(dir);
   const saved = store.get('settings/sovereignty') || {};
   const guard = createGuard({ mode: saved.mode || 'local', allow: saved.allow || [] });
@@ -21,6 +22,7 @@ export async function startCore({ dir, token, port = 0 }) {
   const attachments = createAttachments({ db: store.db, dir: store.dir });
   const notes = createNotes({ db: store.db, store });
   const ai = createAI({ guard, secrets, store });
+  const agents = createAgents({ store, guard, dir: store.dir, ...(opts.agents || {}) });
   const connectors = createConnectors({ guard, secrets });
   const google = createGoogle({ guard, secrets });
   connectors.register('google', google.connector);
@@ -86,6 +88,14 @@ export async function startCore({ dir, token, port = 0 }) {
             return send({ id, result: r });
           } catch (e) { return fail(id, e.code || 'internal', e.message); }
         }
+        case 'agents.list': return send({ id, result: agents.list() });
+        case 'agents.get': case 'agents.start': case 'agents.resume': case 'agents.stop': case 'agents.remove': {
+          const run = method === 'agents.start' ? () => agents.start(params)
+            : method === 'agents.resume' ? () => agents.resume(params.id, params.answer)
+            : method === 'agents.stop' ? () => agents.stop(params.id)
+            : method === 'agents.remove' ? () => agents.remove(params.id) : () => agents.get(params.id);
+          return Promise.resolve().then(run).then((result) => send({ id, result }), (e) => fail(id, e.code || 'internal', e.message));
+        }
         case 'google.status': return send({ id, result: google.status() });
         case 'google.setClient': case 'google.begin': case 'google.disconnect': {
           try {
@@ -109,7 +119,7 @@ export async function startCore({ dir, token, port = 0 }) {
 
   await new Promise((r) => server.listen(port, '127.0.0.1', r));
   return {
-    port: server.address().port, guard, store, secrets, connectors, ai, attachments, notes, google,
+    port: server.address().port, guard, store, secrets, connectors, ai, attachments, notes, google, agents,
     async close() { wss.clients.forEach((c) => c.terminate()); await new Promise((r) => server.close(r)); store.close(); },
   };
 }
