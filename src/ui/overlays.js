@@ -1,7 +1,7 @@
 import { gsap, Flip, reduced, dur, fadeUp } from '../lib/motion.js';
 import { esc, icon, uid, fmtDate, fmtTimeRange, dayLabel, dueLabel, relTime, startOfDay, addDays } from '../lib/dom.js';
 import {
-  state, commit, subscribe, member, project, task as getTask, logActivity, setTaskStatus, STATUSES, PRIORITIES, statusLabel, firstName,
+  state, commit, subscribe, member, project, task as getTask, logActivity, setTaskStatus, STATUSES, PRIORITIES, statusLabel, firstName, activeBoard,
 } from '../store.js';
 import {
   STATUS_LABEL, KINDS, SPACES, runFor, guessKind, hasSession, projectFolder, launch, answer, stop as stopSession, openTerminal, bridgeError,
@@ -308,7 +308,7 @@ export function newTask(preset = {}) {
         id: uid('t'), title: v.title.trim(), projectId: v.projectId || null, status: v.status, priority: v.priority, assignee: v.assignee,
         due: parseDay(v.due), created: Date.now(), doneAt: v.status === 'done' ? Date.now() : null, est: +v.est || 1,
         order: Math.min(0, ...state.tasks.filter((x) => x.order < 1000).map((x) => x.order)) - 1 - Math.random() * 0.01,
-        subtasks: [], comments: [], notes: '',
+        subtasks: [], comments: [], notes: '', boardId: activeBoard().id,
       };
       state.tasks.push(t);
       logActivity('task', `added “${t.title}”`, t.projectId);

@@ -239,7 +239,8 @@ export const DEFAULT_SETTINGS = {
   calendars: null, // null = primary + every non-resource calendar
   blockFocusTime: false, // mirror focus sessions as Focus time in Google Calendar
   hideDeclined: true,
-  boardLists: [['todo', 'To do'], ['doing', 'In progress'], ['review', 'In review'], ['done', 'Done']], // board columns; 'done' is reserved (completion)
+  boards: null, // [{ id, name, lists: [[key, name], ...] }]; created on first use, 'done' is reserved (completion) and stays last
+  boardId: 'main', // the board shown on Tasks
 };
 
 function blank() {
@@ -317,18 +318,24 @@ export const project = (id) => state.projects.find((p) => p.id === id);
 export const task = (id) => state.tasks.find((t) => t.id === id);
 export const me = () => member(state.me);
 export const firstName = (id) => member(id)?.name.split(' ')[0] ?? '';
-export const boardTasks = () => state.tasks.filter((t) => t.order < 1000);
-export const projectTasks = (pid) => boardTasks().filter((t) => t.projectId === pid);
-export const openTasks = (who) => boardTasks().filter((t) => t.status !== 'done' && (!who || t.assignee === who));
+export const cardTasks = () => state.tasks.filter((t) => t.order < 1000); // every board
+/** Cards of the board shown on Tasks. A card without boardId belongs to the first board. */
+export const boardTasks = () => {
+  const id = activeBoard().id;
+  const first = state.settings.boards[0].id;
+  return cardTasks().filter((t) => (t.boardId ?? first) === id);
+};
+export const projectTasks = (pid) => cardTasks().filter((t) => t.projectId === pid);
+export const openTasks = (who) => cardTasks().filter((t) => t.status !== 'done' && (!who || t.assignee === who));
 export const projectProgress = (pid) => {
   const ts = state.tasks.filter((t) => t.projectId === pid && t.order < 1000);
   return ts.length ? ts.filter((t) => t.status === 'done').length / ts.length : 0;
 };
 export const dueToday = (who) => {
   const end = startOfDay().getTime() + 86_400_000;
-  return boardTasks().filter((t) => t.assignee === who && t.due < end && (t.status !== 'done' || t.doneAt >= startOfDay().getTime()));
+  return cardTasks().filter((t) => t.assignee === who && t.due < end && (t.status !== 'done' || t.doneAt >= startOfDay().getTime()));
 };
-export const overdue = (who) => boardTasks().filter((t) => t.status !== 'done' && t.due < startOfDay().getTime() && (!who || t.assignee === who));
+export const overdue = (who) => cardTasks().filter((t) => t.status !== 'done' && t.due < startOfDay().getTime() && (!who || t.assignee === who));
 export const eventsOn = (day) => {
   const a = startOfDay(day).getTime();
   return state.events.filter((e) => e.start >= a && e.start < a + 86_400_000).sort((x, y) => x.start - y.start);
@@ -339,18 +346,74 @@ export const unreadCount = () => state.notices.filter((n) => !n.read).length;
 export const openHours = (who) => openTasks(who).reduce((s, t) => s + t.est, 0);
 
 export const STATUSES = [['todo', 'To do'], ['doing', 'In progress'], ['review', 'In review'], ['done', 'Done']];
-/** Rebuild STATUSES in place from settings.boardLists ('done' always exists and stays last), and rehome orphaned tasks. */
-export function syncStatuses() {
-  const raw = Array.isArray(state.settings?.boardLists) ? state.settings.boardLists : [];
+const DEFAULT_LISTS = [['todo', 'To do'], ['doing', 'In progress'], ['review', 'In review'], ['done', 'Done']];
+/** Clean a list set: unique keys, 'done' always present and last, at least one other list. */
+export function normalizeLists(raw) {
   const seen = new Set();
-  const lists = raw.filter((l) => Array.isArray(l) && l[0] && l[0] !== 'done' && !seen.has(l[0]) && seen.add(l[0])).map(([k, n]) => [String(k), String(n || k)]);
-  const done = raw.find((l) => l?.[0] === 'done');
+  const lists = (Array.isArray(raw) ? raw : []).filter((l) => Array.isArray(l) && l[0] && l[0] !== 'done' && !seen.has(l[0]) && seen.add(l[0])).map(([k, n]) => [String(k), String(n || k)]);
+  const done = (Array.isArray(raw) ? raw : []).find((l) => l?.[0] === 'done');
   if (!lists.length) lists.push(['todo', 'To do']);
   lists.push(['done', done?.[1] || 'Done']);
+  return lists;
+}
+function ensureBoards() {
+  const st = state.settings;
+  if (!Array.isArray(st.boards) || !st.boards.length) st.boards = [{ id: 'main', name: 'Board', lists: normalizeLists(st.boardLists || DEFAULT_LISTS) }];
+  delete st.boardLists; // legacy single-board setting, folded into boards[0]
+  st.boards = st.boards.filter((b) => b && b.id).map((b) => ({ id: String(b.id), name: String(b.name || 'Board'), lists: normalizeLists(b.lists) }));
+  if (!st.boards.length) st.boards = [{ id: 'main', name: 'Board', lists: normalizeLists(DEFAULT_LISTS) }];
+}
+export function activeBoard() {
+  ensureBoards();
+  const st = state.settings;
+  return st.boards.find((b) => b.id === st.boardId) || st.boards[0];
+}
+export const boards = () => (ensureBoards(), state.settings.boards);
+export function addBoard(name) {
+  ensureBoards();
+  const base = String(name || 'Board').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'board';
+  let id = base;
+  for (let i = 2; state.settings.boards.some((b) => b.id === id); i++) id = base + '-' + i;
+  state.settings.boards.push({ id, name: String(name || 'Board').trim() || 'Board', lists: normalizeLists(DEFAULT_LISTS) });
+  state.settings.boardId = id;
+  commit('settings', 'tasks');
+  return id;
+}
+export function renameBoard(id, name) {
+  const b = boards().find((x) => x.id === id);
+  if (b && name.trim()) { b.name = name.trim(); commit('settings'); }
+}
+export function switchBoard(id) {
+  if (!boards().some((b) => b.id === id) || state.settings.boardId === id) return;
+  state.settings.boardId = id;
+  commit('settings', 'tasks');
+}
+/** Delete a board; its cards move to the first remaining board. The last board can't be deleted. */
+export function deleteBoard(id) {
+  const list = boards();
+  if (list.length < 2) return false;
+  const rest = list.filter((b) => b.id !== id);
+  const dest = rest[0];
+  for (const t of state.tasks) if ((t.boardId ?? list[0].id) === id) t.boardId = dest.id;
+  state.settings.boards = rest;
+  if (state.settings.boardId === id) state.settings.boardId = dest.id;
+  commit('settings', 'tasks');
+  return true;
+}
+/** Replace the lists of the active board. */
+export function setBoardLists(lists) {
+  activeBoard().lists = normalizeLists(lists);
+  commit('settings');
+}
+/** Rebuild STATUSES in place from the active board ('done' always exists and stays last), and rehome its orphaned tasks. */
+export function syncStatuses() {
+  const board = activeBoard();
+  const lists = board.lists.map(([k, n]) => [k, n]);
   STATUSES.splice(0, STATUSES.length, ...lists);
   const keys = new Set(lists.map(([k]) => k));
+  const first = state.settings.boards[0].id;
   let moved = false;
-  for (const t of state.tasks) if (!keys.has(t.status)) { t.status = lists[0][0]; t.doneAt = null; moved = true; }
+  for (const t of state.tasks) if ((t.boardId ?? first) === board.id && !keys.has(t.status)) { t.status = lists[0][0]; t.doneAt = null; moved = true; }
   return moved;
 }
 syncStatuses();

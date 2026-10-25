@@ -5,7 +5,7 @@
 // choices and profile overrides; demo mode explains how to go live.
 
 import '../styles/pages/settings.css';
-import { state, commit, subscribe, me, member, project, boardTasks, statusLabel, resetDemo, STATUSES } from '../store.js';
+import { state, commit, subscribe, me, member, project, cardTasks, statusLabel, resetDemo, STATUSES, setBoardLists } from '../store.js';
 import { esc, icon, download, toCsv, relTime } from '../lib/dom.js';
 import { gsap, dur, reduced, revealCards, fadeUp, dealIn, moveLens } from '../lib/motion.js';
 import { pageHead, headIntro, avatar, segmented, bindSegmented, sourceNote, sourceReady } from '../ui/components.js';
@@ -485,8 +485,7 @@ function boardHtml() {
 }
 
 function saveLists(lists) {
-  state.settings.boardLists = [...lists, STATUSES[STATUSES.length - 1]];
-  commit('settings');
+  setBoardLists([...lists, STATUSES[STATUSES.length - 1]]);
   const ul = $('[data-board-lists]');
   if (ul) ul.innerHTML = boardRowsHtml();
 }
@@ -580,7 +579,7 @@ async function sovereigntyAct(act, el) {
 
 function dataHtml() {
   return group('data', 'Data', live ? 'Your tasks, projects and focus log live in your private Lumen space' : 'Everything stays in this browser', `<ul class="cells">
-    ${linkCell({ ico: 'download', hue: 'green', label: 'Export tasks as CSV', hint: `${boardTasks().length} tasks, one row each`, act: 'export' })}
+    ${linkCell({ ico: 'download', hue: 'green', label: 'Export tasks as CSV', hint: `${cardTasks().length} tasks, one row each`, act: 'export' })}
     ${live
       ? linkCell({ ico: 'trash', hue: 'danger', label: 'Clear Lumen data', hint: 'Delete your tasks, projects, focus log and activity', act: 'clear', cls: 'cell--danger' })
       : linkCell({ ico: 'reset', hue: 'danger', label: 'Reset demo data', hint: 'Back to the sample workspace', act: 'reset', cls: 'cell--danger' })}
@@ -738,7 +737,7 @@ function syncValues() {
     st.querySelector('[data-dir="1"]').disabled = v >= +st.dataset.max;
   });
   const ex = $('[data-hint="export"]');
-  if (ex) ex.textContent = `${boardTasks().length} tasks, one row each`;
+  if (ex) ex.textContent = `${cardTasks().length} tasks, one row each`;
 }
 
 function refreshFocusCell(hintOnly = false) {
@@ -790,7 +789,7 @@ function exportCsv() {
     const d = new Date(t);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
-  const tasks = boardTasks();
+  const tasks = cardTasks();
   const rows = [
     ['Title', 'Project', 'Status', 'Priority', 'Assignee', 'Due', 'Created', 'Done', 'Estimate (h)'],
     ...tasks.map((t) => [
@@ -901,8 +900,7 @@ function wire() {
     } else if (t.matches('[data-list]')) {
       const name = t.value.trim();
       if (!name) return void (t.value = statusLabel(t.dataset.list));
-      state.settings.boardLists = STATUSES.map(([k, l]) => (k === t.dataset.list ? [k, name] : [k, l]));
-      commit('settings');
+      setBoardLists(STATUSES.map(([k, l]) => (k === t.dataset.list ? [k, name] : [k, l])));
     } else if (t.matches('[data-setting]')) {
       state.settings[t.dataset.setting] = t.checked;
       commit('settings');
@@ -946,7 +944,7 @@ function wire() {
   focus.onFocus('tick', () => !root.hidden && refreshFocusCell(true));
   subscribe('tasks', () => {
     const ex = $('[data-hint="export"]');
-    if (ex) ex.textContent = `${boardTasks().length} tasks, one row each`;
+    if (ex) ex.textContent = `${cardTasks().length} tasks, one row each`;
   });
   subscribe('bridge', refreshBridge);
   subscribe('github', refreshGithub);

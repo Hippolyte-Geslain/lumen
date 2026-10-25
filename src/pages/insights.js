@@ -6,7 +6,7 @@
 import '../styles/pages/insights.css';
 import { gsap, reduced, fadeUp, revealCards, countTo, flipList } from '../lib/motion.js';
 import { qs, qsa, esc, icon, startOfDay, addDays, daysBetween, fmtDate, fmtTime, weekday, download, toCsv } from '../lib/dom.js';
-import { state, subscribe, project, member, firstName, boardTasks, openHours, doneBetween, focusMinutesBetween } from '../store.js';
+import { state, subscribe, project, member, firstName, cardTasks, openHours, doneBetween, focusMinutesBetween } from '../store.js';
 import {
   pageHead, headIntro, card, avatar, projectChip, segmented, bindSegmented, emptyState, sourceNote, sourceReady,
 } from '../ui/components.js';
@@ -359,7 +359,7 @@ function renderWork(animate) {
 // ---------- on time ----------
 function slowTasks() {
   const sod = startOfDay().getTime();
-  const open = boardTasks().filter((t) => t.status !== 'done');
+  const open = cardTasks().filter((t) => t.status !== 'done');
   const late = open.filter((t) => t.due < sod).sort((a, b) => a.due - b.due);
   const rest = open.filter((t) => t.due >= sod).sort((a, b) => a.created - b.created);
   return [...late, ...rest].slice(0, 3).map((t) => {

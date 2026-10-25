@@ -6,7 +6,7 @@ import '../styles/pages/calendar.css';
 
 import { gsap, reduced, revealTitle, revealCards, collapseOut, fadeUp, popIn } from '../lib/motion.js';
 import { esc, icon, startOfDay, addDays, sameDay, fmtTime, weekday } from '../lib/dom.js';
-import { state, subscribe, project, boardTasks } from '../store.js';
+import { state, subscribe, project, cardTasks } from '../store.js';
 import { pageHead, headIntro, card, avatarStack, segmented, bindSegmented, sourceNote } from '../ui/components.js';
 import { newEvent, openEvent, openTask, toggleDone, KIND } from '../ui/overlays.js';
 
@@ -182,7 +182,7 @@ function dayEvents(ts) {
 }
 
 function tasksDueOn(ts) {
-  return boardTasks()
+  return cardTasks()
     .filter((t) => t.due >= ts && t.due < ts + DAY)
     .sort((a, b) => (a.status === 'done') - (b.status === 'done') || a.due - b.due);
 }

@@ -2,7 +2,7 @@
 
 import { gsap, reduced, fadeUp } from '../lib/motion.js';
 import { esc, icon, highlight } from '../lib/dom.js';
-import { state, boardTasks, project, statusLabel } from '../store.js';
+import { state, cardTasks, project, statusLabel } from '../store.js';
 import { avatar, projectIcon } from './components.js';
 import { closePopover, newTask, openEvent } from './overlays.js';
 import * as focus from '../focus.js';
@@ -37,7 +37,7 @@ function build(q) {
     );
     return out;
   }
-  boardTasks()
+  cardTasks()
     .filter((t) => has(t.title))
     .slice(0, 5)
     .forEach((t) => out.push({ group: 'Tasks', label: t.title, meta: `${project(t.projectId)?.name} · ${statusLabel(t.status)}`, lead: projectIcon(t.projectId), run: () => (location.hash = `#/tasks/${t.id}`) }));

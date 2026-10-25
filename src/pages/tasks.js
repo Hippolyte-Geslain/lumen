@@ -9,6 +9,7 @@ import { gsap, reduced, dur, revealCards, collapseOut, fadeUp, countTo } from '.
 import { esc, icon, startOfDay, addDays, dueLabel, fmtDate } from '../lib/dom.js';
 import {
   state, subscribe, commit, boardTasks, project, member, task as getTask, STATUSES, PRIORITIES, statusLabel, setTaskStatus,
+  boards, activeBoard, switchBoard, addBoard, renameBoard, deleteBoard,
 } from '../store.js';
 import { pageHead, headIntro, card, avatar, projectChip, priorityPill, segmented, bindSegmented, iconBtn } from '../ui/components.js';
 import {
@@ -256,6 +257,7 @@ function shell() {
   });
 
   const bar = `<div class="tk-bar glass" role="toolbar" aria-label="Filter tasks">
+    <button type="button" class="tk-chip" data-f="board" aria-haspopup="menu" aria-expanded="false"></button>
     <button type="button" class="tk-chip" data-f="project" aria-haspopup="menu" aria-expanded="false"></button>
     <button type="button" class="tk-chip" data-f="mine" aria-pressed="false">${avatar(state.me, 'xs', { extra: 'tk-chip__av' })}<span>Mine only</span></button>
     <button type="button" class="tk-chip" data-f="prio" aria-haspopup="menu" aria-expanded="false"></button>
@@ -339,6 +341,9 @@ function syncStart() {
 }
 
 function renderBar() {
+  const bc = els.bar.querySelector('[data-f="board"]');
+  bc.innerHTML = `${icon('grid')}<span class="tk-chip__label">${esc(activeBoard().name)}</span>${icon('chevronDown', 'tk-chip__caret')}`;
+  bc.setAttribute('aria-label', `Board: ${activeBoard().name}`);
   if (filter.project && !project(filter.project)) filter.project = '';
   const p = filter.project && project(filter.project);
   const pc = els.bar.querySelector('[data-f="project"]');
@@ -516,7 +521,20 @@ function renderList(animate = true) {
   });
 }
 
+const statusSig = () => JSON.stringify(STATUSES);
+let colSig = statusSig();
+/** The active board's lists changed (rename, add, switch): rebuild the column shells, cards are repainted by renderBoard/renderList. */
+function rebuildColumns() {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = shell();
+  els.board.innerHTML = tmp.querySelector('.tk-board').innerHTML;
+  els.groups.innerHTML = tmp.querySelector('.tk-groups').innerHTML;
+  els.cols = Object.fromEntries([...els.board.querySelectorAll('.tk-col')].map((c) => [c.dataset.status, c]));
+  colSig = statusSig();
+}
+
 function renderAll(animate) {
+  if (colSig !== statusSig()) rebuildColumns();
   const wasEmpty = els.tk.classList.contains('is-empty');
   syncStart();
   renderHead(animate);
@@ -582,6 +600,41 @@ function clearFilters() {
   searchCall?.kill();
   els.search.value = '';
   applyFilter();
+}
+
+function boardMenu(anchor) {
+  const cur = activeBoard().id;
+  const rows = boards()
+    .map((b) => `<button type="button" class="menu__item" role="menuitemradio" aria-checked="${b.id === cur}" data-b="${esc(b.id)}"><span>${esc(b.name)}</span><i class="tk-pmenu__tick">${b.id === cur ? icon('check', 'menu__check') : ''}</i></button>`)
+    .join('');
+  const html = `<div class="menu" role="menu" aria-label="Boards">${rows}</div>
+    <form class="tk-bmenu__form"><input type="text" class="tk-bmenu__input" placeholder="Board name" maxlength="60" aria-label="Board name" autocomplete="off">
+      <button type="button" class="btn btn--accent btn--sm" data-bact="add">Add</button>
+      <button type="button" class="btn btn--glass btn--sm" data-bact="rename">Rename</button>${boards().length > 1 ? '<button type="button" class="btn btn--glass btn--sm" data-bact="del">Delete</button>' : ''}</form>`;
+  const el = openPopover(anchor, html, { cls: 'pop--menu tk-pmenu', align: 'start' });
+  if (!el) return;
+  (el.querySelector('[aria-checked="true"]') || el.querySelector('.menu__item')).focus();
+  const input = el.querySelector('.tk-bmenu__input');
+  el.addEventListener('submit', (e) => e.preventDefault());
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-b]');
+    const act = e.target.closest('[data-bact]')?.dataset.bact;
+    if (b) {
+      closePopover();
+      anchor.focus();
+      return switchBoard(b.dataset.b);
+    }
+    if (!act) return;
+    const name = input.value.trim();
+    if (act === 'del') {
+      closePopover();
+      return void (confirm(`Delete “${activeBoard().name}”? Its cards move to ${boards().find((x) => x.id !== cur).name}.`) && deleteBoard(cur));
+    }
+    if (!name) return input.focus();
+    closePopover();
+    if (act === 'add') addBoard(name);
+    else renameBoard(cur, name);
+  });
 }
 
 function projectMenu(anchor) {
@@ -1062,7 +1115,8 @@ function wire() {
     const f = t.closest('[data-f]');
     if (f) {
       const kind = f.dataset.f;
-      if (kind === 'project') projectMenu(f);
+      if (kind === 'board') boardMenu(f);
+      else if (kind === 'project') projectMenu(f);
       else if (kind === 'prio') prioMenu(f);
       else if (kind === 'mine') {
         filter.mine = !filter.mine;
