@@ -523,6 +523,7 @@ function boardRowsHtml() {
   const row = ([k, name], i) => `<li class="cell"><div class="cell__main"><div class="cell__text"><input class="cell__input" data-list="${esc(k)}" value="${esc(name)}" maxlength="24" aria-label="List name"><small>${n(k)} tasks</small></div>
     <div class="cell__ctl">
       <button type="button" class="btn btn--glass btn--sm" data-act="list-up" data-key="${esc(k)}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+      <button type="button" class="btn btn--glass btn--sm" data-act="list-down" data-key="${esc(k)}" aria-label="Move down" ${i === lists.length - 1 ? 'disabled' : ''}>↓</button>
       <button type="button" class="btn btn--glass btn--sm" data-act="list-del" data-key="${esc(k)}" aria-label="Remove list" ${lists.length < 2 ? 'disabled' : ''}>${icon('trash')}</button>
     </div></div></li>`;
   const done = STATUSES[STATUSES.length - 1];
@@ -553,6 +554,9 @@ function boardAct(act, el) {
     saveLists([...lists, [key, name]]);
   } else if (act === 'list-up' && i > 0) {
     [lists[i - 1], lists[i]] = [lists[i], lists[i - 1]];
+    saveLists(lists);
+  } else if (act === 'list-down' && i >= 0 && i < lists.length - 1) {
+    [lists[i + 1], lists[i]] = [lists[i], lists[i + 1]];
     saveLists(lists);
   } else if (act === 'list-del' && lists.length > 1) {
     lists.splice(i, 1);

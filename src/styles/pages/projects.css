@@ -183,8 +183,9 @@
 .pgroup__head h3 { font-size: var(--fs-sm); font-weight: 650; }
 .pgroup__fold { margin-left: auto; }
 .sdot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-3); }
-.sdot--doing { background: var(--blue); }
-.sdot--review { background: var(--orange); }
+.sdot--m1 { background: var(--blue); }
+.sdot--m2 { background: var(--orange); }
+.sdot--m3 { background: var(--purple); }
 .sdot--done { background: var(--green); }
 .pgroup__list { padding: 4px; border-radius: 18px; background: var(--fill); }
 .pgroup__list li + li { box-shadow: 0 -1px 0 var(--sep); }

@@ -372,12 +372,14 @@ function renderBar() {
 }
 
 // ---------- board ----------
+const MOTION_MAX = 250;
 function renderBoard(animate = true) {
   if (drag) {
     pending = true;
     return;
   }
-  const motion = animate && !reduced();
+  // Position tweens read every card's rect (forced layout); past a few hundred cards they cost more than they show.
+  const motion = animate && !reduced() && els.board.querySelectorAll('.tk-card').length <= MOTION_MAX;
   const before = new Map();
   const where = new Map();
   const existing = new Map();
@@ -489,7 +491,7 @@ function burst(el, delay) {
 
 // ---------- list ----------
 function renderList(animate = true) {
-  const motion = animate && !reduced();
+  const motion = animate && !reduced() && els.groups.querySelectorAll('.tk-row').length <= MOTION_MAX;
   const before = new Map();
   if (motion) els.groups.querySelectorAll('.tk-row[data-key]').forEach((el) => before.set(el.dataset.key, el.getBoundingClientRect()));
 

@@ -526,15 +526,15 @@ function tasksHtml(p) {
   const ts = projectTasks(p.id);
   if (!ts.length) return emptyState('No tasks yet', 'Add the first task to get this project moving.', 'tasks');
   const alone = solo(p) && ts.every((t) => t.assignee === state.me);
-  return `<div class="ptasks ${alone ? 'is-solo' : ''}">${STATUSES.map(([k, label]) => {
+  return `<div class="ptasks ${alone ? 'is-solo' : ''}">${STATUSES.map(([k, label], i) => {
     const list = ts.filter((t) => t.status === k).sort(k === 'done' ? (a, b) => b.doneAt - a.doneAt : (a, b) => a.due - b.due);
     const fold = k === 'done' && list.length
       ? `<button type="button" class="btn btn--ghost btn--sm pgroup__fold" data-fold aria-expanded="${showDone}" aria-controls="pdone">${showDone ? 'Hide' : 'Show'}</button>`
       : '';
     const body = list.length
       ? `<ul class="pgroup__list" ${k === 'done' ? `id="pdone" ${showDone ? '' : 'hidden'}` : ''}>${list.map((t) => rowHtml(t, alone)).join('')}</ul>`
-      : `<p class="pgroup__empty">${k === 'todo' ? 'Nothing waiting.' : 'Nothing here.'}</p>`;
-    return `<section class="pgroup" aria-label="${label}"><header class="pgroup__head"><i class="sdot sdot--${k}"></i><h3>${label}</h3><span class="badge">${list.length}</span>${fold}</header>${body}</section>`;
+      : `<p class="pgroup__empty">${i === 0 ? 'Nothing waiting.' : 'Nothing here.'}</p>`;
+    return `<section class="pgroup" aria-label="${label}"><header class="pgroup__head"><i class="sdot sdot--${k === 'done' ? 'done' : `m${i % 4}`}"></i><h3>${label}</h3><span class="badge">${list.length}</span>${fold}</header>${body}</section>`;
   }).join('')}</div>`;
 }
 
