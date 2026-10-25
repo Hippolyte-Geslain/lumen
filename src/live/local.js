@@ -146,6 +146,7 @@ export function installLocalClaude() {
     },
     ai: {
       get: () => core.rpc('ai.get'),
+      usage: () => core.rpc('ai.usage'),
       set: (cfg) => core.rpc('ai.set', cfg),
       models: (id) => core.rpc('ai.models', { id }),
       test: (id) => core.rpc('ai.test', { id }),

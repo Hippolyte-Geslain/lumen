@@ -118,3 +118,15 @@ describe('pm connectors', () => {
     await expect(createConnectors({ secrets: secretsOf({}), guard }).callTool('notion', 'search', {})).rejects.toMatchObject({ code: 'not_connected' });
   });
 });
+
+describe('ai usage meter', () => {
+  it('counts calls and estimated tokens per day and provider', async () => {
+    const ai = mkAI({ anthropic: 'k' }, async () => reply(200, { content: [{ type: 'text', text: 'abcdefgh' }] }), { now: () => Date.UTC(2026, 9, 25, 12) });
+    await ai.sample('12345678');
+    await ai.sample('1234');
+    expect(ai.usage()).toEqual({ '2026-10-25': { anthropic: { calls: 2, in: 3, out: 4 } } });
+  });
+  it('lists llama.cpp as a local provider', () => {
+    expect(mkAI({}, async () => reply(200, {})).get().providers.find((p) => p.id === 'llamacpp')).toMatchObject({ local: true, baseUrl: 'http://127.0.0.1:8080/v1' });
+  });
+});

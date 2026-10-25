@@ -107,6 +107,7 @@ export async function startCore({ dir, token, port = 0, ...opts }) {
             return send({ id, result: google.status() });
           } catch (e) { return fail(id, e.code || 'internal', e.message); }
         }
+        case 'ai.usage': return send({ id, result: ai.usage() });
         case 'ai.get': return send({ id, result: ai.get() });
         case 'ai.set': ai.set(params); return send({ id, result: ai.get() });
         case 'ai.models': return ai.models(params.id).then((result) => send({ id, result }), (e) => fail(id, e.code || 'internal', e.message));

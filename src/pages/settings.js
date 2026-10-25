@@ -634,12 +634,12 @@ async function notesAct(act) {
 }
 
 // ---------- AI providers (local core only) ----------
-const AI_LABEL = { anthropic: 'Anthropic', openai: 'OpenAI', ollama: 'Ollama (local)', lmstudio: 'LM Studio (local)', 'claude-code': 'Claude Code (your CLI login)' };
+const AI_LABEL = { anthropic: 'Anthropic', openai: 'OpenAI', ollama: 'Ollama (local)', lmstudio: 'LM Studio (local)', llamacpp: 'llama.cpp server (local)', 'claude-code': 'Claude Code (your CLI login)' };
 let aiCfg = null;
 
 function aiHtml() {
   if (!window.claude?.local) return '';
-  return group('ai', 'AI models', 'Pick which model answers. Local models never leave this machine; keys live in the vault (see Sovereignty).', `<ul class="cells" data-ai="list"><li class="cell"><small>Loading…</small></li></ul>`);
+  return group('ai', 'AI models', 'Pick which model answers. Local models never leave this machine; keys live in the vault (see Sovereignty).', `<ul class="cells" data-ai="list"><li class="cell"><small>Loading…</small></li></ul><p class="cell__hint" data-ai="usage"></p>`);
 }
 
 function aiRows() {
@@ -662,6 +662,14 @@ async function refreshAi() {
   if (!ai || !root) return;
   aiCfg = await ai.get().catch(() => null);
   aiRows();
+  const u = $('[data-ai="usage"]');
+  if (u) {
+    const days = await ai.usage().catch(() => ({}));
+    const week = Object.keys(days).sort().slice(-7).flatMap((k) => Object.entries(days[k]));
+    const by = {};
+    for (const [p, v] of week) { const a = (by[p] ||= { calls: 0, tok: 0 }); a.calls += v.calls; a.tok += v.in + v.out; }
+    u.textContent = Object.keys(by).length ? `Last 7 days (estimated): ${Object.entries(by).map(([p, v]) => `${AI_LABEL[p] || p} ${v.calls} calls, ~${v.tok.toLocaleString()} tokens`).join(' · ')}` : 'No AI calls yet.';
+  }
 }
 
 async function aiAct(act, el) {

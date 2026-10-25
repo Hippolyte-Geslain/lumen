@@ -10,6 +10,7 @@ export const DEFAULT_PROVIDERS = [
   { id: 'openai', kind: 'openai', baseUrl: 'https://api.openai.com/v1' },
   { id: 'ollama', kind: 'ollama', baseUrl: 'http://127.0.0.1:11434', local: true },
   { id: 'lmstudio', kind: 'openai', baseUrl: 'http://127.0.0.1:1234/v1', local: true },
+  { id: 'llamacpp', kind: 'openai', baseUrl: 'http://127.0.0.1:8080/v1', local: true }, // llama-server (llama.cpp) default port
   { id: 'claude-code', kind: 'claude-code' },
 ];
 
@@ -86,7 +87,21 @@ const adapters = {
   },
 };
 
-export function createAI({ guard, secrets, store, spawn }) {
+const USAGE = 'ai/usage';
+const KEEP_DAYS = 30;
+const dayKey = (t) => new Date(t).toISOString().slice(0, 10);
+const approx = (s) => Math.ceil(String(s || '').length / 4); // no adapter reports tokens uniformly, so this is an estimate
+
+export function createAI({ guard, secrets, store, spawn, now = () => Date.now() }) {
+  /** Per-day, per-provider call and (estimated) token counts. Kept locally, 30 days. */
+  function record(provider, messages, text) {
+    const days = store.get(USAGE) || {};
+    const d = (days[dayKey(now())] ||= {});
+    const u = (d[provider] ||= { calls: 0, in: 0, out: 0 });
+    u.calls += 1; u.in += approx(messages.map((m) => m.content).join('')); u.out += approx(text);
+    for (const k of Object.keys(days).sort().slice(0, -KEEP_DAYS)) delete days[k];
+    store.set(USAGE, days);
+  }
   const read = () => {
     const saved = store.get('settings/ai') || {};
     const byId = new Map((saved.providers || []).map((p) => [p.id, p]));
@@ -117,6 +132,7 @@ export function createAI({ guard, secrets, store, spawn }) {
       try {
         const model = cfg.model || TIER_MODELS[cfg.kind]?.[tier];
         const text = await adapters[cfg.kind].chat({ cfg, key: keyOf(cfg), model, messages, guard, spawn });
+        record(cfg.id, messages, text);
         return { text, provider: cfg.id };
       } catch (e) {
         if (e.code === 'rate_limited') throw e;
@@ -134,6 +150,7 @@ export function createAI({ guard, secrets, store, spawn }) {
       if (typeof prompt !== 'string' || !prompt) throw err('bad_request', 'Missing prompt');
       return chat([{ role: 'user', content: prompt }], { modelTier: opts.modelTier });
     },
+    usage: () => store.get(USAGE) || {},
     get: () => ({ ...read(), providers: read().providers.map((p) => ({ ...p, hasKey: !!(p.secret || p.id) && secrets.has(p.secret || p.id) })) }),
     set({ providers, routes } = {}) {
       const cur = read();
