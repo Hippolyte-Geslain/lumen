@@ -16,6 +16,8 @@ SUMMARY: <2-3 plain sentences: what you did and the outcome>
 STATUS: done | blocked | needs-input
 QUESTION: <one precise question>            (only with STATUS: needs-input)
 OPTIONS: <short option> | <short option>     (optional, with QUESTION)
+MEMORY: <one durable fact about this project worth remembering next time>   (repeat per fact; skip trivia)
+DRAFT: <email tasks only: the full reply text; may span several lines; put it last>
 Never ask for confirmation mid-work; only use needs-input for decisions that truly block you.`;
 
 const short = (s, n = 140) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
@@ -39,17 +41,21 @@ export function describeTool(name, input = {}) {
 
 /** Parse the SUMMARY/STATUS/QUESTION/OPTIONS lines at the end of the final message. */
 export function parseResult(text) {
-  const out = { summary: '', status: 'done', question: '', options: [] };
+  const out = { summary: '', status: 'done', question: '', options: [], memory: [], draft: '' };
+  let draftAt = -1;
   const lines = String(text || '').split(/\r?\n/);
-  for (const line of lines) {
-    const m = line.match(/^\s*\**(SUMMARY|STATUS|QUESTION|OPTIONS)\**\s*:\s*(.*)$/);
-    if (!m) continue;
+  lines.forEach((line, i) => {
+    const m = line.match(/^\s*\**(SUMMARY|STATUS|QUESTION|OPTIONS|MEMORY|DRAFT)\**\s*:\s*(.*)$/);
+    if (!m) return;
     const [, key, v] = m;
+    if (key === 'MEMORY' && v.trim()) out.memory.push(v.trim().slice(0, 240));
+    if (key === 'DRAFT') draftAt = i;
     if (key === 'SUMMARY') out.summary = v.trim();
     if (key === 'STATUS') out.status = /needs/i.test(v) ? 'waiting' : /block/i.test(v) ? 'blocked' : 'done';
     if (key === 'QUESTION') out.question = v.trim();
     if (key === 'OPTIONS') out.options = v.split('|').map((o) => o.trim()).filter(Boolean).slice(0, 5);
-  }
+  });
+  if (draftAt >= 0) out.draft = [lines[draftAt].replace(/^\s*\**DRAFT\**\s*:\s*/, ''), ...lines.slice(draftAt + 1)].join('\n').trim();
   if (!out.summary) out.summary = short(lines.filter((l) => l.trim()).slice(-3).join(' '), 400);
   if (out.question && out.status === 'done') out.status = 'waiting';
   return out;
@@ -98,7 +104,7 @@ export function createAgents({ store, guard, spawn = nodeSpawn, dir, limit = 3, 
             } else if (b.type === 'text' && b.text.trim()) {
               lastText = b.text;
               const first = b.text.split(/(?<=[.!?])\s|\n/)[0];
-              if (!/^\s*\**(SUMMARY|STATUS|QUESTION|OPTIONS)\b/.test(first)) touch(r, { live: short(first) });
+              if (!/^\s*\**(SUMMARY|STATUS|QUESTION|OPTIONS|MEMORY|DRAFT)\b/.test(first)) touch(r, { live: short(first) });
             }
           }
         }
@@ -107,7 +113,7 @@ export function createAgents({ store, guard, spawn = nodeSpawn, dir, limit = 3, 
           const authFail = ev.is_error && /authenticat|login|oauth/i.test(ev.result || '');
           touch(r, {
             status: ev.is_error ? 'error' : p.status, live: '', summary: p.summary,
-            question: p.status === 'waiting' ? p.question : '', options: p.status === 'waiting' ? p.options : [],
+            question: p.status === 'waiting' ? p.question : '', options: p.status === 'waiting' ? p.options : [], memory: p.memory, draft: p.draft,
             error: ev.is_error ? (authFail ? 'Claude Code is signed out. Run "claude /login" in a terminal, then resume.' : short(ev.result, 300)) : '',
             cost: (r.cost || 0) + (ev.total_cost_usd || 0), session_id: ev.session_id || r.session_id,
           });
@@ -127,16 +133,17 @@ export function createAgents({ store, guard, spawn = nodeSpawn, dir, limit = 3, 
     list: () => runs.map(view),
     get: (id) => view(find(id)),
     /** Start a run for a card in a fresh worktree of `repo`. */
-    async start({ cardId, title, prompt, repo, mode = 'acceptEdits' } = {}) {
+    async start({ cardId, title, prompt, repo, mode = 'acceptEdits', project = '', sessionId = '' } = {}) {
       if (!prompt || typeof prompt !== 'string') throw err('bad_request', 'A prompt is required');
       if (!MODES.includes(mode)) throw err('bad_request', `mode must be one of ${MODES.join(', ')}`);
       const root = resolve(String(repo || ''));
-      if (!repo || !existsSync(root) || !statSync(root).isDirectory() || !existsSync(join(root, '.git'))) throw err('bad_request', 'repo must be an existing git repository');
+      if (!repo || !existsSync(root) || !statSync(root).isDirectory() ) throw err('bad_request', 'repo must be an existing folder');
+      const isGit = existsSync(join(root, '.git'));
       const id = randomBytes(5).toString('hex');
       const branch = `lumen/${(String(title || 'task').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'task')}-${id}`;
       const cwd = join(dir, 'worktrees', id);
-      await gitRun(['worktree', 'add', '-b', branch, cwd], root);
-      const r = { run_id: id, card: cardId || null, title: short(title || prompt, 80), repo: root, cwd, branch, mode, status: 'queued', live: 'Queued…', files: [], steps: 0, cost: 0, created: Date.now(), updated: Date.now(), pending_prompt: prompt };
+      if (isGit && !sessionId) await gitRun(['worktree', 'add', '-b', branch, cwd], root);
+      const r = { run_id: id, card: cardId || null, task_id: cardId || null, task_title: short(title || prompt, 80), project, title: short(title || prompt, 80), repo: root, cwd: isGit && !sessionId ? cwd : root, branch: isGit && !sessionId ? branch : '', worktree: isGit && !sessionId, session_id: sessionId || undefined, memory: [], draft: '', mode, status: 'queued', live: 'Queued…', files: [], steps: 0, cost: 0, created: Date.now(), updated: Date.now(), pending_prompt: prompt };
       runs.push(r); save(); pump();
       return view(r);
     },
@@ -160,7 +167,7 @@ export function createAgents({ store, guard, spawn = nodeSpawn, dir, limit = 3, 
     async remove(id) {
       const r = find(id);
       procs.get(id)?.kill();
-      try { await gitRun(['worktree', 'remove', '--force', r.cwd], r.repo); } catch { /* already gone */ }
+      if (r.worktree) { try { await gitRun(['worktree', 'remove', '--force', r.cwd], r.repo); } catch { /* already gone */ } }
       runs = runs.filter((x) => x !== r); save();
       return { ok: true, branch: r.branch };
     },

@@ -55,6 +55,10 @@ async function probe() {
 export async function startSessions() {
   if (!LIVE) return;
   await probe();
+  // With the local core, runs are pushed over the database channel: refresh the moment one changes.
+  if (state.bridge.status === 'ok') {
+    window.claude?.db?.collection?.('agents').doc('runs').onSnapshot(() => schedule(50), () => {});
+  }
   // Coming back to the tab re-checks a bridge that was off (the app may have started it since).
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;

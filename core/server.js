@@ -7,6 +7,7 @@ import { createAI } from './ai.js';
 import { createNotes } from './notes.js';
 import { createAttachments } from './attachments.js';
 import { createAgents } from './agents.js';
+import { createHostLumen } from './hostlumen.js';
 import { createGoogle } from './google.js';
 import { createConnectors } from './mcp.js';
 
@@ -26,6 +27,7 @@ export async function startCore({ dir, token, port = 0, ...opts }) {
   const connectors = createConnectors({ guard, secrets });
   const google = createGoogle({ guard, secrets });
   connectors.register('google', google.connector);
+  connectors.register('host:lumen', createHostLumen({ agents, ...(opts.host || {}) }));
   const server = http.createServer((req, res) => {
     if (req.url === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"ok":true}'); }
     const u = new URL(req.url, 'http://127.0.0.1');
