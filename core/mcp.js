@@ -1,5 +1,6 @@
 // Connector registry for `mcp.callTool`. A connector is {tools:{name:async(input)=>payload}}.
 // Unknown servers fail with server_not_connected.
+import { registerPm } from './pm.js';
 const err = (code, message) => Object.assign(new Error(message), { code });
 
 const REPO = /^[\w.-]+\/[\w.-]+$/;
@@ -45,6 +46,8 @@ export function createConnectors({ guard, secrets }) {
       issues: (i) => gl(`/projects/${encodeURIComponent(repoOf(i))}/issues?state=opened`),
     },
   });
+
+  registerPm(register, { guard, secrets });
 
   return {
     register,

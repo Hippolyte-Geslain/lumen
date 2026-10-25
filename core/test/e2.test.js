@@ -93,3 +93,28 @@ describe('attachments', () => {
     await core.close();
   });
 });
+
+describe('pm connectors', () => {
+  it('clickup: raw token header, ids validated, create posts a task', async () => {
+    const calls = [];
+    const c = createConnectors({ secrets: secretsOf({ clickup: 'pk_1' }), guard: guardOf(async (u, i) => (calls.push({ u, i }), reply(200, { ok: 1 }))) });
+    await c.callTool('clickup', 'tasks', { listId: '42' });
+    expect(calls[0].u).toBe('https://api.clickup.com/api/v2/list/42/task?include_closed=false');
+    expect(calls[0].i.headers.authorization).toBe('pk_1');
+    await expect(c.callTool('clickup', 'tasks', { listId: '../x' })).rejects.toMatchObject({ code: 'bad_request' });
+    await c.callTool('clickup', 'create_task', { listId: '7', name: 'Do it' });
+    expect(JSON.parse(calls[1].i.body)).toMatchObject({ name: 'Do it' });
+    await expect(c.callTool('clickup', 'create_task', { listId: '7', name: ' ' })).rejects.toMatchObject({ code: 'bad_request' });
+  });
+  it('notion: finds the title property, maps auth errors', async () => {
+    const calls = [];
+    const guard = guardOf(async (u, i) => { calls.push({ u, i }); return reply(200, u.endsWith('/databases/db1') ? { properties: { Done: { type: 'checkbox' }, Name: { type: 'title' } } } : {}); });
+    const c = createConnectors({ secrets: secretsOf({ notion: 'secret_x' }), guard });
+    await c.callTool('notion', 'create_page', { databaseId: 'db1', title: 'Hello' });
+    expect(JSON.parse(calls[1].i.body).properties.Name.title[0].text.content).toBe('Hello');
+    expect(calls[0].i.headers['notion-version']).toBe('2022-06-28');
+    const bad = createConnectors({ secrets: secretsOf({ notion: 'k' }), guard: guardOf(async () => reply(401, {})) });
+    await expect(bad.callTool('notion', 'search', { query: 'x' })).rejects.toMatchObject({ code: 'not_connected' });
+    await expect(createConnectors({ secrets: secretsOf({}), guard }).callTool('notion', 'search', {})).rejects.toMatchObject({ code: 'not_connected' });
+  });
+});
