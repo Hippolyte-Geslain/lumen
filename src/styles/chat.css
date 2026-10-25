@@ -1,0 +1,13 @@
+.chat { display: flex; flex-direction: column; gap: 12px; min-height: 60vh; }
+.chat__log { flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: calc(100vh - 220px); padding-right: 4px; }
+.chat__hint { color: var(--ink-2, #888); font-size: var(--fs-sm, 13px); }
+.chat__msg { max-width: 92%; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--ink, #000) 6%, transparent); font-size: var(--fs-sm, 14px); line-height: 1.45; }
+.chat__msg p { margin: 0; overflow-wrap: anywhere; }
+.chat__msg--user { align-self: flex-end; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.chat__msg--error { color: var(--danger, #d9473f); }
+.chat__tray { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.chat__act { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--ink, #000) 12%, transparent); }
+.chat__act > span { flex: 1 1 100%; }
+.chat__act[data-s="skipped"] { opacity: .55; }
+.chat__form { display: flex; gap: 8px; }
+.chat__input { flex: 1; min-width: 0; padding: 10px 14px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--ink, #000) 15%, transparent); background: transparent; color: inherit; font: inherit; }

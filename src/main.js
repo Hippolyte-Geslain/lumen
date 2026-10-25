@@ -12,6 +12,7 @@ import { ROUTES } from './routes.js';
 import { avatar, enableLift } from './ui/components.js';
 import { initIsland, notify } from './ui/island.js';
 import { initFinder, openFinder } from './ui/finder.js';
+import { openChat } from './ui/chat.js';
 import {
   openPopover, closePopover, openMenu, openDrawer, confirm, collapseCard, focusedCard, newTask, newEvent, newProject, openTask, openEvent,
 } from './ui/overlays.js';
@@ -238,7 +239,7 @@ function meMenu(anchor, align) {
 
 const KEYS = [
   ['⌘ K  or  /', 'Search'], ['N', 'Create menu'], ['T', 'New task'], ['F', 'Start focus'], ['G then H', 'Go home'], ['G then T', 'Go to tasks'],
-  ['G then E', 'Go to inbox'], ['G then F', 'Go to files'], ['G then C', 'Go to calendar'], ['G then P', 'Go to projects'], ['G then I', 'Go to insights'], ['G then M', 'Go to people'], ['G then S', 'Go to settings'], ['?', 'This list'], ['Esc', 'Close'],
+  ['G then E', 'Go to inbox'], ['G then F', 'Go to files'], ['G then C', 'Go to calendar'], ['G then P', 'Go to projects'], ['G then I', 'Go to insights'], ['G then M', 'Go to people'], ['G then S', 'Go to settings'], ['⌘ J  or  A', 'Assistant'], ['?', 'This list'], ['Esc', 'Close'],
 ];
 function shortcuts() {
   openDrawer(`<h2 class="dr-title">Keyboard shortcuts</h2><dl class="keys">${KEYS.map(([k, l]) => `<div><dt>${l}</dt><dd>${k.split('  ').map((p) => p.split(' ').map((x) => (x === 'or' || x === 'then' ? `<span class="faint">${x}</span>` : `<kbd>${x}</kbd>`)).join(' ')).join(' ')}</dd></div>`).join('')}</dl>`, { label: 'Keyboard shortcuts' });
@@ -251,6 +252,10 @@ function bindKeys() {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       return openFinder();
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+      e.preventDefault();
+      return openChat();
     }
     if (e.key === 'Escape' && focusedCard()) return collapseCard();
     if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, select, [contenteditable]') || qs('dialog[open]')) return;
@@ -266,6 +271,7 @@ function bindKeys() {
       openFinder();
     } else if (k === 'n') createMenu(qs('#btn-new'));
     else if (k === 't') newTask();
+    else if (k === 'a') openChat();
     else if (k === 'f' && !focus.isRunning()) focus.start();
     else if (e.key === '?') shortcuts();
   });
@@ -278,6 +284,7 @@ function bindShell() {
     bounceIcon(e.currentTarget);
     openFinder();
   });
+  qs('#btn-chat').addEventListener('click', openChat);
   qs('#btn-new').addEventListener('click', (e) => createMenu(e.currentTarget));
   qs('#btn-theme').addEventListener('click', (e) => {
     bounceIcon(e.currentTarget);
