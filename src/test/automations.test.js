@@ -45,3 +45,17 @@ describe('automations', () => {
     expect(describeRule(rule({ trigger: { type: 'card_moved', to: 'done' }, action: { type: 'notify', text: 'Nice' } }))).toBe('When a card moves to done, notify “Nice”');
   });
 });
+
+describe('automation actions', () => {
+  it('validates run_agent and brief against their triggers', () => {
+    const ok = cleanRules([
+      { id: 'a', on: true, trigger: { type: 'card_moved', to: 'doing' }, action: { type: 'run_agent' } },
+      { id: 'b', on: true, trigger: { type: 'daily', at: '08:00' }, action: { type: 'brief' } },
+      { id: 'c', on: true, trigger: { type: 'daily', at: '08:00' }, action: { type: 'run_agent' } },
+      { id: 'd', on: true, trigger: { type: 'card_created' }, action: { type: 'brief' } },
+    ], ['todo', 'doing', 'done']);
+    expect(ok.map((r) => r.id)).toEqual(['a', 'b']);
+    expect(plan(ok, { type: 'daily' })).toEqual([{ rule: 'b', a: { type: 'brief' } }]);
+    expect(plan(ok, { type: 'card_moved', to: 'doing', task: { id: 'x', status: 'doing' } })[0].a).toEqual({ type: 'run_agent', id: 'x' });
+  });
+});

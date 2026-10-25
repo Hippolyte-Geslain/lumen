@@ -76,10 +76,10 @@ export async function startCore({ dir, token, port = 0, ...opts }) {
         case 'secrets.has': return send({ id, result: { has: secrets.has(params.name) } });
         case 'secrets.delete': secrets.delete(params.name); return send({ id, result: { ok: true } });
         case 'mcp.callTool': return connectors.callTool(params.server, params.tool, params.input).then((result) => send({ id, result }), (e) => fail(id, e.code || 'internal', e.message));
-        case 'attachments.add': case 'attachments.list': case 'attachments.read': case 'attachments.remove': {
+        case 'attachments.add': case 'attachments.list': case 'attachments.read': case 'attachments.remove': case 'attachments.removeCard': {
           try {
             const r = method === 'attachments.add' ? attachments.add(params) : method === 'attachments.list' ? attachments.list(params.cardId)
-              : method === 'attachments.read' ? attachments.read(params.id) : { ok: attachments.remove(params.id) };
+              : method === 'attachments.read' ? attachments.read(params.id) : method === 'attachments.removeCard' ? (attachments.removeCard(params.cardId), { ok: true }) : { ok: attachments.remove(params.id) };
             return send({ id, result: r });
           } catch (e) { return fail(id, e.code || 'internal', e.message); }
         }

@@ -122,6 +122,7 @@ export function installLocalClaude() {
       list: (cardId) => core.rpc('attachments.list', { cardId }),
       read: (id) => core.rpc('attachments.read', { id }),
       remove: (id) => core.rpc('attachments.remove', { id }),
+      removeCard: (cardId) => core.rpc('attachments.removeCard', { cardId }),
     },
     notes: {
       get: () => core.rpc('notes.get'),

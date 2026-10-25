@@ -855,6 +855,8 @@ export function openTask(id, { onClose } = {}) {
           state.tasks.splice(i, 1);
           commit('tasks');
           closeDrawer();
+          // Files go once the undo window has passed and the card is still gone.
+          setTimeout(() => { if (!state.tasks.includes(t)) use('attachments').then((a) => a?.removeCard(t.id)).catch(() => {}); }, 20000);
           notify('Task deleted', { ico: 'trash', undo: () => (state.tasks.splice(i, 0, t), commit('tasks')) });
         }
       });

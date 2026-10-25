@@ -5,7 +5,7 @@
 // Card-bound actions act on the card that fired the trigger; text fields accept {{title}}.
 
 export const TRIGGERS = { card_created: 'A card is added', card_moved: 'A card moves to a list', daily: 'Every day at a time' };
-export const RULE_ACTIONS = { move_task: 'Move the card to…', complete_task: 'Mark the card done', set_priority: 'Set the card priority…', create_task: 'Add a card…', notify: 'Notify me…' };
+export const RULE_ACTIONS = { move_task: 'Move the card to…', complete_task: 'Mark the card done', set_priority: 'Set the card priority…', create_task: 'Add a card…', notify: 'Notify me…', run_agent: 'Start a Claude session on the card', brief: 'Write my morning brief' };
 
 const PRI = ['low', 'medium', 'high', 'urgent'];
 const fill = (s, t) => String(s ?? '').replace(/\{\{\s*title\s*\}\}/g, t?.title ?? '').slice(0, 200);
@@ -22,7 +22,8 @@ export function cleanRules(raw, statuses = []) {
     if (a.type === 'move_task' && !keys.has(a.status)) continue;
     if (a.type === 'set_priority' && !PRI.includes(a.priority)) continue;
     if ((a.type === 'create_task' || a.type === 'notify') && !String(a.title ?? a.text ?? '').trim()) continue;
-    if (t.type === 'daily' && ['move_task', 'complete_task', 'set_priority'].includes(a.type)) continue; // no card to act on
+    if (t.type === 'daily' && ['move_task', 'complete_task', 'set_priority', 'run_agent'].includes(a.type)) continue; // no card to act on
+    if (a.type === 'brief' && t.type !== 'daily') continue;
     out.push({ id: r.id, name: String(r.name || '').slice(0, 60), on: r.on !== false, trigger: { ...t }, action: { ...a } });
   }
   return out;
@@ -47,6 +48,7 @@ export function plan(rules, ev) {
     const a = r.action; const t = ev.task;
     const label = r.name || TRIGGERS[r.trigger.type];
     if (a.type === 'notify') out.push({ rule: r.id, a: { type: 'notify', text: fill(a.text ?? a.title, t) } });
+    else if (a.type === 'brief') out.push({ rule: r.id, a: { type: 'brief' } });
     else if (a.type === 'create_task') out.push({ rule: r.id, a: { type: 'create_task', title: fill(a.title, t), ...(a.status ? { status: a.status } : {}) } });
     else if (t) {
       if (a.type === 'move_task' && t.status === a.status) continue;
@@ -70,6 +72,6 @@ export function dailyDue(rule, now, lastRun) {
 export const describeRule = (r, statusLabel = (k) => k) => {
   const t = r.trigger; const a = r.action;
   const when = t.type === 'daily' ? `Every day at ${t.at}` : t.type === 'card_created' ? 'When a card is added' : t.to ? `When a card moves to ${statusLabel(t.to)}` : 'When a card moves';
-  const then = { move_task: `move it to ${statusLabel(a.status)}`, complete_task: 'mark it done', set_priority: `set priority ${a.priority}`, create_task: `add “${a.title}”`, notify: `notify “${a.text ?? a.title}”` }[a.type];
+  const then = { move_task: `move it to ${statusLabel(a.status)}`, complete_task: 'mark it done', set_priority: `set priority ${a.priority}`, create_task: `add “${a.title}”`, notify: `notify “${a.text ?? a.title}”`, run_agent: 'start a Claude session', brief: 'write my morning brief' }[a.type];
   return `${when}, ${then}`;
 };
