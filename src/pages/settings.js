@@ -6,7 +6,7 @@
 
 import '../styles/pages/settings.css';
 import { state, commit, subscribe, me, member, project, cardTasks, statusLabel, resetDemo, STATUSES, setBoardLists, importBoard } from '../store.js';
-import { esc, icon, download, toCsv, relTime, uid } from '../lib/dom.js';
+import { esc, icon, download, toCsv, relTime, uid, openExternal } from '../lib/dom.js';
 import { gsap, dur, reduced, revealCards, fadeUp, dealIn, moveLens } from '../lib/motion.js';
 import { pageHead, headIntro, avatar, segmented, bindSegmented, sourceNote, sourceReady } from '../ui/components.js';
 import { confirm, notify } from '../ui/overlays.js';
@@ -29,7 +29,7 @@ const SECTIONS = [
   ['board', 'Board', 'layers', 'indigo'],
   ['focus', 'Focus', 'clock', 'orange'],
   ...(window.claude?.local ? [['ai', 'AI models', 'sparkle', 'purple']] : []),
-  ...(window.claude?.local ? [['notes', 'Notes', 'file', 'teal']] : []),
+  ...(window.claude?.local ? [['notes', 'Notes', 'file', 'teal'], ['google', 'Google', 'link', 'blue']] : []),
   ...(window.claude?.local ? [['sovereignty', 'Sovereignty', 'shield', 'orange']] : []),
   ['data', 'Data', 'layers', 'teal'],
 ];
@@ -520,6 +520,40 @@ const MODES = [
 ];
 const SECRET_NAMES = ['anthropic', 'openai', 'github', 'gitlab', 'clickup', 'notion'];
 
+// ---------- Google (local core only) ----------
+function googleHtml() {
+  if (!window.claude?.local) return '';
+  return group('google', 'Google', 'Calendar, Gmail (read only) and Drive search. Create a Desktop-app OAuth client in your Google Cloud console and paste it here; tokens stay in the local vault.', `<ul class="cells">
+    <li class="cell"><div class="cell__text"><b>OAuth client</b><small data-google="state">Not connected</small></div>
+      <div class="cell__ctl"><input class="cell__input" data-google-id placeholder="Client ID" autocomplete="off" spellcheck="false"><input class="cell__input" data-google-secret type="password" placeholder="Client secret (if any)" autocomplete="off"><button type="button" class="btn btn--sm btn--glass" data-act="google-connect">Connect</button><button type="button" class="btn btn--sm btn--glass" data-act="google-off">Disconnect</button></div></li>
+  </ul>`);
+}
+
+async function refreshGoogle() {
+  const g = await window.claude?.use?.('google');
+  const st = $('[data-google="state"]');
+  if (!g || !st) return;
+  const r = await g.status().catch(() => null);
+  st.textContent = r?.connected ? 'Connected' : r?.hasClient ? 'Client saved, not signed in' : 'Not connected';
+}
+
+async function googleAct(act) {
+  const g = await window.claude.use('google');
+  try {
+    if (act === 'google-off') { await g.disconnect(); notify('Google disconnected', { ico: 'check' }); }
+    else {
+      const id = $('[data-google-id]').value.trim();
+      if (id) await g.setClient(id, $('[data-google-secret]').value);
+      const { url } = await g.begin();
+      $('[data-google-secret]').value = '';
+      openExternal(url);
+      notify('Finish signing in in your browser, then come back', { ico: 'link' });
+      setTimeout(refreshGoogle, 15000);
+    }
+  } catch (e) { notify(String(e?.message || e), { ico: 'x', tone: 'warn' }); }
+  refreshGoogle();
+}
+
 // ---------- notes folder (local core only) ----------
 function notesHtml() {
   if (!window.claude?.local) return '';
@@ -690,7 +724,7 @@ function render() {
   <div class="settings">
     ${navHtml()}
     <div class="settings__col">
-      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${focusHtml()}${aiHtml()}${notesHtml()}${sovereigntyHtml()}${dataHtml()}
+      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${focusHtml()}${aiHtml()}${notesHtml()}${googleHtml()}${sovereigntyHtml()}${dataHtml()}
       <div class="settings__end" aria-hidden="true"></div>
     </div>
   </div>`;
@@ -1005,6 +1039,7 @@ function wire() {
     else if (act?.startsWith('sov-')) sovereigntyAct(act, actEl).then(refreshAi);
     else if (act?.startsWith('ai-')) aiAct(act, actEl);
     else if (act?.startsWith('notes-')) notesAct(act);
+    else if (act?.startsWith('google-')) googleAct(act);
   });
 
   root.addEventListener('change', (e) => {
@@ -1127,6 +1162,7 @@ export const page = {
     refreshSovereignty();
     refreshAi();
     refreshNotes();
+    refreshGoogle();
     if (live) {
       refreshConnections();
       refreshCalendar();

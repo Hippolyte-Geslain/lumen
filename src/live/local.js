@@ -129,6 +129,12 @@ export function installLocalClaude() {
       reindex: () => core.rpc('notes.reindex'),
       search: (query, limit) => core.rpc('notes.search', { query, limit }),
     },
+    google: {
+      status: () => core.rpc('google.status'),
+      setClient: (clientId, clientSecret) => core.rpc('google.setClient', { clientId, clientSecret }),
+      begin: () => core.rpc('google.begin'),
+      disconnect: () => core.rpc('google.disconnect'),
+    },
     ai: {
       get: () => core.rpc('ai.get'),
       set: (cfg) => core.rpc('ai.set', cfg),

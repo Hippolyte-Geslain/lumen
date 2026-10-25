@@ -6,6 +6,7 @@ import { createSecrets } from './secrets.js';
 import { createAI } from './ai.js';
 import { createNotes } from './notes.js';
 import { createAttachments } from './attachments.js';
+import { createGoogle } from './google.js';
 import { createConnectors } from './mcp.js';
 
 const ORIGINS = new Set(['tauri://localhost', 'http://tauri.localhost', 'https://tauri.localhost', 'http://localhost:5173', 'http://127.0.0.1:5173']);
@@ -21,8 +22,16 @@ export async function startCore({ dir, token, port = 0 }) {
   const notes = createNotes({ db: store.db, store });
   const ai = createAI({ guard, secrets, store });
   const connectors = createConnectors({ guard, secrets });
+  const google = createGoogle({ guard, secrets });
+  connectors.register('google', google.connector);
   const server = http.createServer((req, res) => {
     if (req.url === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"ok":true}'); }
+    const u = new URL(req.url, 'http://127.0.0.1');
+    if (u.pathname === '/oauth/google') {
+      // Loopback redirect from Google. Protected by the single-use random state, not the WS token.
+      const page = (t) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(`<!doctype html><meta charset="utf-8"><title>Lumen</title><p style="font:16px system-ui;margin:3em auto;max-width:28em">${t}</p>`); };
+      return google.complete(u.searchParams.get('state'), u.searchParams.get('code')).then(() => page('Google is connected. You can close this tab and return to Lumen.'), (e) => page(String(e.message).replace(/[<&]/g, ' ')));
+    }
     res.writeHead(404); res.end();
   });
   const wss = new WebSocketServer({ noServer: true });
@@ -77,6 +86,15 @@ export async function startCore({ dir, token, port = 0 }) {
             return send({ id, result: r });
           } catch (e) { return fail(id, e.code || 'internal', e.message); }
         }
+        case 'google.status': return send({ id, result: google.status() });
+        case 'google.setClient': case 'google.begin': case 'google.disconnect': {
+          try {
+            if (method === 'google.setClient') google.setClient(params);
+            else if (method === 'google.disconnect') google.disconnect();
+            else return send({ id, result: google.begin(`http://127.0.0.1:${server.address().port}/oauth/google`) });
+            return send({ id, result: google.status() });
+          } catch (e) { return fail(id, e.code || 'internal', e.message); }
+        }
         case 'ai.get': return send({ id, result: ai.get() });
         case 'ai.set': ai.set(params); return send({ id, result: ai.get() });
         case 'ai.models': return ai.models(params.id).then((result) => send({ id, result }), (e) => fail(id, e.code || 'internal', e.message));
@@ -91,7 +109,7 @@ export async function startCore({ dir, token, port = 0 }) {
 
   await new Promise((r) => server.listen(port, '127.0.0.1', r));
   return {
-    port: server.address().port, guard, store, secrets, connectors, ai, attachments, notes,
+    port: server.address().port, guard, store, secrets, connectors, ai, attachments, notes, google,
     async close() { wss.clients.forEach((c) => c.terminate()); await new Promise((r) => server.close(r)); store.close(); },
   };
 }
