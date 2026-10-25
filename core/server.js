@@ -8,6 +8,7 @@ import { createNotes } from './notes.js';
 import { createAttachments } from './attachments.js';
 import { createAgents } from './agents.js';
 import { createHostLumen } from './hostlumen.js';
+import { createLlama } from './llama.js';
 import { createBackup } from './backup.js';
 import { createUpdater } from './update.js';
 import { createGoogle } from './google.js';
@@ -27,6 +28,8 @@ export async function startCore({ dir, token, port = 0, ...opts }) {
   const ai = createAI({ guard, secrets, store });
   const agents = createAgents({ store, guard, dir: store.dir, ...(opts.agents || {}) });
   const backup = createBackup({ store });
+  const llama = createLlama({ guard, store, dir: store.dir, ...(opts.llama || {}) });
+  llama.boot();
   const updater = createUpdater({ guard, store, version: opts.version || '0.1.0' });
   const connectors = createConnectors({ guard, secrets });
   const google = createGoogle({ guard, secrets });
@@ -117,6 +120,16 @@ export async function startCore({ dir, token, port = 0, ...opts }) {
         case 'update.get': return send({ id, result: updater.get() });
         case 'update.setFeed': try { updater.setFeed(params.feed); return send({ id, result: updater.get() }); } catch (e) { return fail(id, e.code || 'internal', e.message); }
         case 'update.check': return updater.check().then((result) => send({ id, result }), (e) => fail(id, e.code || 'internal', e.message));
+        case 'llama.status': return send({ id, result: llama.status() });
+        case 'llama.install': case 'llama.download': case 'llama.removeModel': case 'llama.setModel': case 'llama.setAutostart': case 'llama.stop': {
+          try {
+            const r = method === 'llama.install' ? llama.install(params) : method === 'llama.download' ? llama.download(params.id)
+              : method === 'llama.removeModel' ? (llama.removeModel(params.id), llama.status()) : method === 'llama.setModel' ? (llama.setModel(params.id), llama.status())
+              : method === 'llama.setAutostart' ? (llama.setAutostart(params.on), llama.status()) : llama.stop();
+            return send({ id, result: r });
+          } catch (e) { return fail(id, e.code || 'internal', e.message); }
+        }
+        case 'llama.start': return llama.start(params).then((result) => send({ id, result }), (e) => fail(id, e.code || 'internal', e.message));
         case 'ai.usage': return send({ id, result: ai.usage() });
         case 'ai.get': return send({ id, result: ai.get() });
         case 'ai.set': ai.set(params); return send({ id, result: ai.get() });
@@ -133,6 +146,6 @@ export async function startCore({ dir, token, port = 0, ...opts }) {
   await new Promise((r) => server.listen(port, '127.0.0.1', r));
   return {
     port: server.address().port, guard, store, secrets, connectors, ai, attachments, notes, google, agents,
-    async close() { wss.clients.forEach((c) => c.terminate()); await new Promise((r) => server.close(r)); store.close(); },
+    async close() { llama.close(); wss.clients.forEach((c) => c.terminate()); await new Promise((r) => server.close(r)); store.close(); },
   };
 }

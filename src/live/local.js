@@ -154,6 +154,17 @@ export function installLocalClaude() {
       test: (id) => core.rpc('ai.test', { id }),
       chat: (messages, opts = {}) => core.rpc('ai.chat', { messages, opts }),
     },
+    llama: {
+      status: () => core.rpc('llama.status'),
+      install: (variant) => core.rpc('llama.install', { variant }),
+      download: (id) => core.rpc('llama.download', { id }),
+      removeModel: (id) => core.rpc('llama.removeModel', { id }),
+      setModel: (id) => core.rpc('llama.setModel', { id }),
+      setAutostart: (on) => core.rpc('llama.setAutostart', { on }),
+      start: (model) => core.rpc('llama.start', { model }),
+      stop: () => core.rpc('llama.stop'),
+      allowHosts: async (hosts) => { for (const h of hosts) await core.rpc('guard.allow', { host: h }); },
+    },
     sample: (prompt, opts = {}) => core.rpc('sample', { prompt, opts: { modelTier: opts.modelTier, cache: opts.cache } }),
   };
 

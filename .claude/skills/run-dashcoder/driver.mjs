@@ -46,7 +46,7 @@ try {
   await p.waitForTimeout(2500);
   ok('core connected (window.claude.local)', await p.evaluate(() => !!window.claude?.local));
   const heads = await p.$$eval('h2', (n) => n.map((x) => x.textContent.trim()));
-  for (const h of ['Board', 'Automations', 'AI models', 'Notes', 'Google', 'ClickUp & Notion', 'Sovereignty', 'Data']) ok('settings section ' + h, heads.includes(h));
+  for (const h of ['Board', 'Automations', 'AI models', 'Local model (llama.cpp)', 'Notes', 'Google', 'ClickUp & Notion', 'Sovereignty', 'Data']) ok('settings section ' + h, heads.includes(h));
   await p.screenshot({ path: join(OUT, 'settings.png'), fullPage: true });
 
   const caps = await p.evaluate(async () => {

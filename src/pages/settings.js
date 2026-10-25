@@ -31,7 +31,7 @@ const SECTIONS = [
   ['board', 'Board', 'layers', 'indigo'],
   ['automations', 'Automations', 'bolt', 'orange'],
   ['focus', 'Focus', 'clock', 'orange'],
-  ...(window.claude?.local ? [['ai', 'AI models', 'sparkle', 'purple']] : []),
+  ...(window.claude?.local ? [['ai', 'AI models', 'sparkle', 'purple'], ['llama', 'Local model', 'download', 'green']] : []),
   ...(window.claude?.local ? [['notes', 'Notes', 'file', 'teal'], ['google', 'Google', 'link', 'blue'], ['pm', 'ClickUp & Notion', 'download', 'purple']] : []),
   ...(window.claude?.local ? [['sovereignty', 'Sovereignty', 'shield', 'orange']] : []),
   ['data', 'Data', 'layers', 'teal'],
@@ -668,6 +668,59 @@ async function notesAct(act) {
   refreshNotes();
 }
 
+// ---------- bundled llama.cpp (local core only) ----------
+let llamaTimer = 0;
+function llamaHtml() {
+  if (!window.claude?.local) return '';
+  return group('llama', 'Local model (llama.cpp)', 'Run a model on this PC with nothing else installed. Lumen downloads llama-server from the official llama.cpp releases and a model from Hugging Face, checks their hashes, and serves it on 127.0.0.1 only. Then pick “llama.cpp server” as the model in AI models.', `<ul class="cells" data-llama="list"><li class="cell"><small>Loading…</small></li></ul>`);
+}
+
+const mb = (n) => (n > 1e9 ? (n / 1e9).toFixed(1) + ' GB' : Math.round(n / 1e6) + ' MB');
+
+async function refreshLlama() {
+  const llama = await window.claude?.use?.('llama');
+  const ul = $('[data-llama="list"]');
+  if (!llama || !ul) return;
+  const s = await llama.status().catch(() => null);
+  if (!s) return;
+  const guard = await window.claude.use('guard').catch(() => null);
+  const allowed = guard ? new Set((await guard.get().catch(() => ({ allow: [] }))).allow) : new Set();
+  const cloud = guard ? (await guard.get().catch(() => ({}))).mode === 'cloud' : false;
+  const needsHosts = !cloud && s.hosts.some((h) => !allowed.has(h));
+  const j = s.job;
+  const running = j && !j.error && !j.finished;
+  const prog = j ? (j.error ? `<small class="cell__err">${esc(j.error)}</small>` : running ? `<small>Downloading ${esc(j.label)}… ${j.total ? Math.round((j.done / j.total) * 100) + '% of ' + mb(j.total) : mb(j.done)}</small>` : '') : '';
+  const btn = (act, label, extra = '') => `<button type="button" class="btn btn--sm btn--glass" data-act="${act}" ${extra} ${running ? 'disabled' : ''}>${label}</button>`;
+  const rows = [];
+  if (needsHosts) rows.push(`<li class="cell"><div class="cell__text"><b>Allow downloads</b><small>Lets Lumen reach github.com and huggingface.co (and their download hosts) for this. Remove them later in Sovereignty.</small></div><div class="cell__ctl">${btn('llama-allow', 'Allow')}</div></li>`);
+  rows.push(`<li class="cell"><div class="cell__text"><b>llama-server</b><small>${s.installed ? 'Installed' + (s.tag ? ' · ' + esc(s.tag) : '') : 'Not installed (about 25 MB)'}</small></div><div class="cell__ctl">${btn('llama-install', s.installed ? 'Update' : 'Install')}</div></li>`);
+  for (const m of s.models) {
+    rows.push(`<li class="cell"><div class="cell__text"><b>${esc(m.name)}</b><small>${m.installed ? 'Downloaded' + (s.model === m.id ? ' · selected' : '') : esc(m.size) + ' download'}</small></div><div class="cell__ctl">${m.installed ? btn('llama-use', 'Use', `data-id="${esc(m.id)}"`) + btn('llama-del', 'Delete', `data-id="${esc(m.id)}"`) : btn('llama-get', 'Download', `data-id="${esc(m.id)}"`)}</div></li>`);
+  }
+  for (const f of s.custom) rows.push(`<li class="cell"><div class="cell__text"><b>${esc(f)}</b><small>Your own file${s.model === f ? ' · selected' : ''}</small></div><div class="cell__ctl">${btn('llama-use', 'Use', `data-id="${esc(f)}"`)}</div></li>`);
+  rows.push(`<li class="cell"><div class="cell__text"><b>Server</b><small>${s.starting ? 'Loading the model…' : s.running ? 'Running on 127.0.0.1:' + s.port : 'Stopped'}</small>${prog}</div><div class="cell__ctl">${s.running || s.starting ? btn('llama-stop', 'Stop') : btn('llama-start', 'Start', s.installed && s.model ? '' : 'disabled')}</div></li>`);
+  rows.push(`<li class="cell"><div class="cell__text"><b>Start with Lumen</b><small>Launch the server when Lumen opens</small></div><div class="cell__ctl">${toggle('data-llama-auto', s.autostart, 'llama-auto')}</div></li>`);
+  ul.innerHTML = rows.join('');
+  clearTimeout(llamaTimer);
+  if (running || s.starting) llamaTimer = setTimeout(refreshLlama, 700);
+}
+
+async function llamaAct(act, el) {
+  const llama = await window.claude.use('llama');
+  const id = el?.dataset?.id;
+  try {
+    if (act === 'llama-allow') { await llama.allowHosts((await llama.status()).hosts); }
+    else if (act === 'llama-install') await llama.install();
+    else if (act === 'llama-get') await llama.download(id);
+    else if (act === 'llama-use') await llama.setModel(id);
+    else if (act === 'llama-del') await llama.removeModel(id);
+    else if (act === 'llama-start') { refreshLlama(); await llama.start(); notify('Local model is running. Choose “llama.cpp server” in AI models.', { ico: 'check' }); }
+    else if (act === 'llama-stop') await llama.stop();
+  } catch (e) { notify(String(e?.message || e), { ico: 'x', tone: 'warn' }); }
+  refreshLlama();
+  if (act === 'llama-start' || act === 'llama-stop') refreshAi();
+}
+
 // ---------- AI providers (local core only) ----------
 const AI_LABEL = { anthropic: 'Anthropic', openai: 'OpenAI', ollama: 'Ollama (local)', lmstudio: 'LM Studio (local)', llamacpp: 'llama.cpp server (local)', 'claude-code': 'Claude Code (your CLI login)' };
 let aiCfg = null;
@@ -815,7 +868,7 @@ function render() {
   <div class="settings">
     ${navHtml()}
     <div class="settings__col">
-      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${automationsHtml()}${focusHtml()}${aiHtml()}${notesHtml()}${googleHtml()}${pmHtml()}${sovereigntyHtml()}${dataHtml()}
+      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${automationsHtml()}${focusHtml()}${aiHtml()}${llamaHtml()}${notesHtml()}${googleHtml()}${pmHtml()}${sovereigntyHtml()}${dataHtml()}
       <div class="settings__end" aria-hidden="true"></div>
     </div>
   </div>`;
@@ -1140,6 +1193,7 @@ function wire() {
     else if (act === 'github-retry') startGithub();
     else if (act?.startsWith('sov-')) sovereigntyAct(act, actEl).then(refreshAi);
     else if (act?.startsWith('ai-')) aiAct(act, actEl);
+    else if (act?.startsWith('llama-')) llamaAct(act, actEl);
     else if (act?.startsWith('notes-')) notesAct(act);
     else if (act?.startsWith('google-')) googleAct(act);
     else if (act?.startsWith('pm-')) pmAct(act);
@@ -1147,6 +1201,7 @@ function wire() {
 
   root.addEventListener('change', (e) => {
     if (e.target.dataset?.aiModel) aiModel(e.target);
+    if (e.target.matches?.('[data-llama-auto]')) window.claude.use('llama').then((l) => l.setAutostart(e.target.checked));
     const t = e.target;
     if (t.matches('[data-notify]')) {
       state.settings.notify[t.dataset.notify] = t.checked;
@@ -1265,6 +1320,7 @@ export const page = {
     refreshSovereignty();
     refreshAi();
     refreshNotes();
+    refreshLlama();
     refreshGoogle();
     if (live) {
       refreshConnections();
