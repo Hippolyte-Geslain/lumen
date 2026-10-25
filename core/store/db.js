@@ -26,6 +26,7 @@ export function openStore(dir) {
       watchers.get(path).add(fn);
       return () => watchers.get(path).delete(fn);
     },
+    db, dir,
     close() { db.close(); },
   };
 }

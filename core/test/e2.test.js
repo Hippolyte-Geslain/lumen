@@ -75,3 +75,21 @@ describe('connectors', () => {
     ws.close(); await core.close();
   });
 });
+
+describe('attachments', () => {
+  it('stores, lists, reads back, removes; enforces input rules', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lumen-'));
+    const core = await startCore({ dir, token: 't' });
+    const a = core.attachments;
+    const meta = a.add({ cardId: 'c1', name: '../evil.txt', mime: 'text/plain', data: Buffer.from('hello').toString('base64') });
+    expect(meta).toMatchObject({ cardId: 'c1', size: 5 });
+    expect(a.list('c1')).toHaveLength(1);
+    expect(Buffer.from(a.read(meta.id).data, 'base64').toString()).toBe('hello');
+    expect(() => a.add({ cardId: 'c1', name: 'x', data: '' })).toThrow(/Empty/);
+    expect(() => a.add({ name: 'x', data: 'aa' })).toThrow(/required/);
+    expect(a.remove(meta.id)).toBe(true);
+    expect(a.list('c1')).toEqual([]);
+    expect(() => a.read(meta.id)).toThrow(/No such/);
+    await core.close();
+  });
+});

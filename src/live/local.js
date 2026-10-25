@@ -117,6 +117,12 @@ export function installLocalClaude() {
       has: (name) => core.rpc('secrets.has', { name }),
       delete: (name) => core.rpc('secrets.delete', { name }),
     },
+    attachments: {
+      add: (cardId, name, mime, data) => core.rpc('attachments.add', { cardId, name, mime, data }),
+      list: (cardId) => core.rpc('attachments.list', { cardId }),
+      read: (id) => core.rpc('attachments.read', { id }),
+      remove: (id) => core.rpc('attachments.remove', { id }),
+    },
     ai: {
       get: () => core.rpc('ai.get'),
       set: (cfg) => core.rpc('ai.set', cfg),

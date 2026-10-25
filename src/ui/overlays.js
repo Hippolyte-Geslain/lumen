@@ -8,7 +8,7 @@ import {
 import { avatar, avatarStack, projectChip, priorityPill, segmented, bindSegmented, iconBtn } from './components.js';
 import { notify } from './island.js';
 import * as focus from '../focus.js';
-import { LIVE, explain } from '../live/runtime.js';
+import { LIVE, explain, use } from '../live/runtime.js';
 import * as cal from '../live/sources.js';
 import { collaborators } from '../live/people.js';
 import { openPullRequest } from '../live/github.js';
@@ -705,6 +705,40 @@ function claudeSecHtml(t) {
 }
 
 // ---------- task drawer ----------
+const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+const readB64 = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(file); });
+
+/** Attachments live in the local core; the section stays hidden where there is none (demo, Artifact). */
+async function paintAttachments(body, t) {
+  const api = await use('attachments');
+  const sec = body.querySelector('[data-att]');
+  if (!api || !sec) return;
+  const list = await api.list(t.id).catch(() => []);
+  sec.hidden = false;
+  sec.innerHTML = `<h3>Attachments <span class="badge">${list.length}</span></h3>
+    <ul class="dr-subs">${list.map((a) => `<li class="dr-link"><button type="button" class="link" data-att-get="${a.id}">${esc(a.name)}</button> <small class="faint">${kb(a.size)}</small> <button type="button" class="tk-label__x" data-att-del="${a.id}" aria-label="Remove ${esc(a.name)}">×</button></li>`).join('') || '<li class="faint">No files.</li>'}</ul>
+    <label class="btn btn--sm btn--glass">Add a file<input type="file" data-att-file hidden></label>`;
+  sec.onclick = async (e) => {
+    const get = e.target.closest('[data-att-get]'); const del = e.target.closest('[data-att-del]');
+    try {
+      if (get) {
+        const f = await api.read(get.dataset.attGet);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], { type: f.mime }));
+        a.download = f.name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      } else if (del) { await api.remove(del.dataset.attDel); paintAttachments(body, t); }
+    } catch (err) { notify(err.message, { ico: 'x', tone: 'warn' }); }
+  };
+  sec.onchange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try { await api.add(t.id, file.name, file.type || undefined, await readB64(file)); paintAttachments(body, t); }
+    catch (err) { notify(err.message, { ico: 'x', tone: 'warn' }); }
+  };
+}
+
 export function openTask(id, { onClose } = {}) {
   const t = getTask(id);
   if (!t) return notify('That task no longer exists', { ico: 'x', tone: 'warn' });
@@ -731,6 +765,7 @@ export function openTask(id, { onClose } = {}) {
       <section class="dr-sec"><h3>Linked cards</h3>
         <ul class="dr-subs">${(t.links || []).map((id) => getTask(id)).filter(Boolean).map((o) => `<li class="dr-link"><a href="#/tasks" data-open-card="${o.id}">${esc(o.title)}</a> <small class="faint">${esc(statusLabel(o.status))}</small> <button type="button" class="tk-label__x" data-unlink="${o.id}" aria-label="Unlink ${esc(o.title)}">×</button></li>`).join('') || '<li class="faint">No linked cards.</li>'}</ul>
         <form class="dr-add" data-form="link"><select class="input" name="v" aria-label="Link a card"><option value="">Link a card…</option>${cardTasks().filter((o) => o.id !== t.id && !(t.links || []).includes(o.id)).slice(0, 200).map((o) => `<option value="${o.id}">${esc(o.title)}</option>`).join('')}</select></form></section>
+      <section class="dr-sec" data-att hidden></section>
       <section class="dr-sec dr-claude" data-claude aria-label="Claude session">${claudeSecHtml(t)}</section>
       <section class="dr-sec"><h3>Subtasks <span class="badge">${doneSubs}/${t.subtasks.length}</span></h3>
         <ul class="dr-subs">${t.subtasks.map((s) => `<li><button type="button" class="dr-sub" role="checkbox" aria-checked="${s.done}" data-sub="${s.id}"><span class="check"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>${esc(s.title)}</span></button></li>`).join('')}</ul>
@@ -747,6 +782,7 @@ export function openTask(id, { onClose } = {}) {
       setTaskStatus(t, v);
       render(body);
     });
+    paintAttachments(body, t);
   };
   let unsubs = [];
   const unwatch = () => (unsubs.forEach((u) => u()), (unsubs = []));
