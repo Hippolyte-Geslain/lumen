@@ -2,6 +2,9 @@
 // Unknown servers fail with server_not_connected.
 const err = (code, message) => Object.assign(new Error(message), { code });
 
+const REPO = /^[\w.-]+\/[\w.-]+$/;
+const repoOf = (i) => { if (!REPO.test(i?.repo || '') || i.repo.split('/').some((p) => /^\.+$/.test(p))) throw err('bad_request', 'repo must look like owner/name'); return i.repo; };
+
 export function createConnectors({ guard, secrets }) {
   const servers = new Map();
   const register = (name, connector) => servers.set(name, connector);
@@ -20,8 +23,26 @@ export function createConnectors({ guard, secrets }) {
   register('github', {
     tools: {
       repos: () => gh('/user/repos?sort=pushed&per_page=30'),
-      pulls: ({ repo }) => gh(`/repos/${repo}/pulls?state=open`),
-      issues: ({ repo }) => gh(`/repos/${repo}/issues?state=open`),
+      pulls: (i) => gh(`/repos/${repoOf(i)}/pulls?state=open`),
+      issues: (i) => gh(`/repos/${repoOf(i)}/issues?state=open`),
+    },
+  });
+
+  const gl = async (path) => {
+    const key = secrets.has('gitlab') ? secrets.get('gitlab') : null;
+    if (!key) throw err('not_connected', 'Add a GitLab token in Settings');
+    const res = await guard.fetch(`https://gitlab.com/api/v4${path}`, { headers: { authorization: `Bearer ${key}` } });
+    if (res.status === 401) throw err('not_connected', 'GitLab rejected the token');
+    if (res.status === 429) throw err('rate_limited', 'GitLab rate limit');
+    if (!res.ok) throw err('provider_error', `GitLab answered ${res.status}`);
+    return res.json();
+  };
+  // GitLab addresses projects by URL-encoded path (owner%2Fname).
+  register('gitlab', {
+    tools: {
+      projects: () => gl('/projects?membership=true&order_by=last_activity_at&per_page=30'),
+      merge_requests: (i) => gl(`/projects/${encodeURIComponent(repoOf(i))}/merge_requests?state=opened`),
+      issues: (i) => gl(`/projects/${encodeURIComponent(repoOf(i))}/issues?state=opened`),
     },
   });
 

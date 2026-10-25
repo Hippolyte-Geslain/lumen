@@ -57,6 +57,15 @@ describe('connectors', () => {
     const c = createConnectors({ secrets: secretsOf({ github: 't' }), guard: guardOf(async (u) => reply(200, [{ u }])) });
     expect((await c.callTool('github', 'pulls', { repo: 'a/b' })).payload[0].u).toContain('/repos/a/b/pulls');
   });
+  it('gitlab encodes the project path and rejects odd repos', async () => {
+    const urls = [];
+    const c = createConnectors({ secrets: secretsOf({ gitlab: 't' }), guard: guardOf(async (u) => (urls.push(u), reply(200, []))) });
+    await c.callTool('gitlab', 'merge_requests', { repo: 'grp/app' });
+    expect(urls[0]).toBe('https://gitlab.com/api/v4/projects/grp%2Fapp/merge_requests?state=opened');
+    await expect(c.callTool('gitlab', 'issues', { repo: '../x?y' })).rejects.toMatchObject({ code: 'bad_request' });
+    await expect(c.callTool('github', 'pulls', { repo: 'a/..' })).rejects.toMatchObject({ code: 'bad_request' });
+    await expect(createConnectors({ secrets: secretsOf({}), guard: guardOf(async () => reply(200, [])) }).callTool('gitlab', 'projects')).rejects.toMatchObject({ code: 'not_connected' });
+  });
   it('RPC maps errors', async () => {
     const core = await startCore({ dir: mkdtempSync(join(tmpdir(), 'lumen-')), token: 't' });
     const ws = await new Promise((r) => { const w = new WebSocket(`ws://127.0.0.1:${core.port}/?token=t`); w.on('open', () => r(w)); });
