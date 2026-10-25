@@ -6,6 +6,7 @@
 
 import '../styles/pages/settings.css';
 import { state, commit, subscribe, me, member, project, cardTasks, statusLabel, resetDemo, STATUSES, setBoardLists, importBoard } from '../store.js';
+import { clickupToBoard, notionToBoard } from '../lib/pmimport.js';
 import { cleanRules, describeRule, TRIGGERS, RULE_ACTIONS } from '../lib/automations.js';
 import { esc, icon, download, toCsv, relTime, uid, openExternal } from '../lib/dom.js';
 import { gsap, dur, reduced, revealCards, fadeUp, dealIn, moveLens } from '../lib/motion.js';
@@ -31,7 +32,7 @@ const SECTIONS = [
   ['automations', 'Automations', 'bolt', 'orange'],
   ['focus', 'Focus', 'clock', 'orange'],
   ...(window.claude?.local ? [['ai', 'AI models', 'sparkle', 'purple']] : []),
-  ...(window.claude?.local ? [['notes', 'Notes', 'file', 'teal'], ['google', 'Google', 'link', 'blue']] : []),
+  ...(window.claude?.local ? [['notes', 'Notes', 'file', 'teal'], ['google', 'Google', 'link', 'blue'], ['pm', 'ClickUp & Notion', 'download', 'purple']] : []),
   ...(window.claude?.local ? [['sovereignty', 'Sovereignty', 'shield', 'orange']] : []),
   ['data', 'Data', 'layers', 'teal'],
 ];
@@ -567,6 +568,36 @@ const MODES = [
 ];
 const SECRET_NAMES = ['anthropic', 'openai', 'github', 'gitlab', 'clickup', 'notion'];
 
+// ---------- ClickUp & Notion import (local core only) ----------
+function pmHtml() {
+  if (!window.claude?.local) return '';
+  return group('pm', 'ClickUp & Notion', 'Import a ClickUp list or a Notion database as a new board. Save the API token under Sovereignty → vault first. Needs network access to that host.', `<ul class="cells">
+    <li class="cell"><div class="cell__text"><b>ClickUp list</b><small>The number at the end of the list's URL</small></div>
+      <div class="cell__ctl"><input class="cell__input" data-pm-clickup placeholder="List ID" autocomplete="off" spellcheck="false"><button type="button" class="btn btn--sm btn--glass" data-act="pm-clickup">Import</button></div></li>
+    <li class="cell"><div class="cell__text"><b>Notion database</b><small>The 32-character ID in the database URL; share it with your integration first</small></div>
+      <div class="cell__ctl"><input class="cell__input" data-pm-notion placeholder="Database ID" autocomplete="off" spellcheck="false"><button type="button" class="btn btn--sm btn--glass" data-act="pm-notion">Import</button></div></li>
+  </ul>`);
+}
+
+async function pmAct(act) {
+  const mcp = await window.claude.use('mcp');
+  try {
+    if (act === 'pm-clickup') {
+      const listId = $('[data-pm-clickup]').value.trim();
+      const res = await mcp.callTool('clickup', 'tasks', { listId });
+      const r = clickupToBoard(res.payload ?? res, { name: `ClickUp ${listId}`, me: state.me, uid });
+      importBoard(r.name, r.lists, r.cards);
+      notify(`Imported ${r.cards.length} ClickUp tasks`, { ico: 'download' });
+    } else {
+      const databaseId = $('[data-pm-notion]').value.trim().replace(/-/g, '');
+      const res = await mcp.callTool('notion', 'query_database', { databaseId });
+      const r = notionToBoard(res.payload ?? res, { name: 'Notion database', me: state.me, uid });
+      importBoard(r.name, r.lists, r.cards);
+      notify(`Imported ${r.cards.length} Notion pages`, { ico: 'download' });
+    }
+  } catch (e) { notify(String(e?.message || e), { ico: 'x', tone: 'warn' }); }
+}
+
 // ---------- Google (local core only) ----------
 function googleHtml() {
   if (!window.claude?.local) return '';
@@ -779,7 +810,7 @@ function render() {
   <div class="settings">
     ${navHtml()}
     <div class="settings__col">
-      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${automationsHtml()}${focusHtml()}${aiHtml()}${notesHtml()}${googleHtml()}${sovereigntyHtml()}${dataHtml()}
+      ${connectionsHtml()}${live ? calendarHtml() : ''}${profileHtml()}${notifyHtml()}${appearanceHtml()}${boardHtml()}${automationsHtml()}${focusHtml()}${aiHtml()}${notesHtml()}${googleHtml()}${pmHtml()}${sovereigntyHtml()}${dataHtml()}
       <div class="settings__end" aria-hidden="true"></div>
     </div>
   </div>`;
@@ -1096,6 +1127,7 @@ function wire() {
     else if (act?.startsWith('ai-')) aiAct(act, actEl);
     else if (act?.startsWith('notes-')) notesAct(act);
     else if (act?.startsWith('google-')) googleAct(act);
+    else if (act?.startsWith('pm-')) pmAct(act);
   });
 
   root.addEventListener('change', (e) => {
